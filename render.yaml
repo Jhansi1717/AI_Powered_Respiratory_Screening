@@ -12,7 +12,7 @@ services:
         value: sqlite:///./test.db
 
   # Frontend: React
-  - type: static
+  - type: static_site
     name: respiratory-ai-frontend
     buildCommand: npm install && npm run build
     staticPublishPath: build
