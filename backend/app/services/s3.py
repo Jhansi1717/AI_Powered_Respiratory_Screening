@@ -1,0 +1,30 @@
+import boto3
+import uuid
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+s3 = boto3.client(
+    "s3",
+    aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
+    aws_secret_access_key=os.getenv("AWS_SECRET_KEY"),
+    region_name=os.getenv("AWS_REGION")
+)
+
+BUCKET = os.getenv("AWS_BUCKET")
+
+
+def upload_file(file_bytes, filename):
+    unique_name = f"{uuid.uuid4()}_{filename}"
+
+    s3.put_object(
+        Bucket=BUCKET,
+        Key=unique_name,
+        Body=file_bytes,
+        ContentType="audio/wav"
+    )
+
+    url = f"https://{BUCKET}.s3.amazonaws.com/{unique_name}"
+
+    return url

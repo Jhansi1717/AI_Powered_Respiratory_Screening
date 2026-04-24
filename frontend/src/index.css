@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply m-0 min-h-screen bg-slate-100 text-slate-900 antialiased;
+    font-family: "Manrope", "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif;
+    background-image:
+      radial-gradient(circle at top left, rgba(56, 189, 248, 0.18), transparent 28%),
+      radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.12), transparent 24%);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: "Clash Display", "Manrope", "Segoe UI", sans-serif;
+  }
+
+  .animate-fade-up {
+    animation: fadeUp 0.7s ease-out both;
+  }
+
+  .animate-fade-up-delayed {
+    animation: fadeUp 0.85s ease-out both;
+    animation-delay: 0.1s;
+  }
+
+  .animate-fade-up-delayed-2 {
+    animation: fadeUp 1s ease-out both;
+    animation-delay: 0.2s;
+  }
+
+  .animate-float-slow {
+    animation: floatSlow 12s ease-in-out infinite;
+  }
+
+  .animate-float-delayed {
+    animation: floatSlow 14s ease-in-out infinite;
+    animation-delay: 1.8s;
+  }
+
+  .animate-pulse-soft {
+    animation: pulseSoft 8s ease-in-out infinite;
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes floatSlow {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(0, -18px, 0) scale(1.04);
+  }
+}
+
+@keyframes pulseSoft {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.55;
+    transform: scale(1.08);
+  }
+}

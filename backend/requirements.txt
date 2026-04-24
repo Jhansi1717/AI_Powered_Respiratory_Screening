@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+python-multipart
+pydantic
+pydantic[email]
+sqlalchemy
+psycopg2-binary
+boto3
+torch
+librosa
+numpy
+timm
+passlib[argon2]
+python-jose[cryptography]
+argon2-cffi
