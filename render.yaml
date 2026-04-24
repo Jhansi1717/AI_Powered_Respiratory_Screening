@@ -1,0 +1,27 @@
+services:
+  # Backend: FastAPI
+  - type: web
+    name: respiratory-ai-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    rootDir: backend
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        value: sqlite:///./test.db
+
+  # Frontend: React
+  - type: web
+    name: respiratory-ai-frontend
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: build
+    rootDir: frontend
+    envVars:
+      - key: REACT_APP_API_URL
+        fromService:
+          name: respiratory-ai-backend
+          type: web
+          property: host
