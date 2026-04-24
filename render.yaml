@@ -3,12 +3,11 @@ services:
   - type: web
     name: respiratory-ai-backend
     env: python
+    plan: free # 🔥 Force free tier
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     rootDir: backend
     envVars:
-      - key: PORT
-        value: 10000
       - key: DATABASE_URL
         value: sqlite:///./test.db
 
@@ -16,6 +15,7 @@ services:
   - type: web
     name: respiratory-ai-frontend
     env: static
+    plan: free # 🔥 Force free tier
     buildCommand: npm install && npm run build
     staticPublishPath: build
     rootDir: frontend
