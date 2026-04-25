@@ -1305,7 +1305,7 @@ export default function Dashboard({ isDarkMode, toggleTheme, language, setLangua
                 </div>
               </div>
               <div className="p-12">
-                <div className="grid gap-12 lg:grid-cols-2">
+                <div className="grid gap-8 lg:grid-cols-[1fr_auto_1fr] items-center">
                   {/* Left: Drag & Drop */}
                   <label className="group relative flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 p-10 transition hover:border-blue-500 hover:bg-blue-50/30 dark:border-slate-800 dark:bg-slate-800/50 dark:hover:border-blue-500 dark:hover:bg-blue-900/20">
                     <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm transition group-hover:scale-110 group-hover:text-blue-600 dark:bg-slate-800 dark:group-hover:text-blue-400">
@@ -1317,9 +1317,9 @@ export default function Dashboard({ isDarkMode, toggleTheme, language, setLangua
                   </label>
 
                   {/* Vertical Divider */}
-                  <div className="hidden lg:flex flex-col items-center justify-center relative">
+                  <div className="hidden lg:flex flex-col items-center justify-center h-full min-w-[40px] relative">
                     <div className="w-[1px] h-full bg-slate-100 dark:bg-slate-800" />
-                    <div className="absolute top-1/2 -translate-y-1/2 bg-white px-2 py-1 text-[10px] font-black uppercase tracking-widest text-slate-300 dark:bg-slate-900">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-300 dark:bg-slate-900">
                       OR
                     </div>
                   </div>
