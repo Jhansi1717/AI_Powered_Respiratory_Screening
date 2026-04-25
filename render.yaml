@@ -25,4 +25,4 @@ services:
         fromService:
           type: web
           name: respiratory-ai-backend
-          property: url
+          property: host

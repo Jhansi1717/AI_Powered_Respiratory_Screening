@@ -1,6 +1,11 @@
 import axios from 'axios';
 
-const API_BASE = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+let API_BASE = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+
+// 🔹 Production Fix: If the URL is just a host (e.g. 'backend.onrender.com'), prepend https://
+if (API_BASE && !API_BASE.startsWith('http')) {
+  API_BASE = `https://${API_BASE}`;
+}
 
 const buildApiError = (error, fallbackDetail) => {
   const apiError = new Error(fallbackDetail);
