@@ -280,6 +280,25 @@ Tested with ICBHI respiratory audio samples and varied audio formats:
 
 ---
 
+## ☁️ Deployment (Render)
+
+This project is configured for one-click deployment using **Render Blueprints**.
+
+### Steps to Deploy:
+1. **Push to GitHub**: Ensure your latest changes (including `render.yaml`) are pushed to your repository.
+2. **Connect to Render**:
+   - Go to [Render Dashboard](https://dashboard.render.com).
+   - Click **New +** and select **Blueprint**.
+   - Connect your GitHub repository.
+3. **Configure Environment**:
+   - Render will automatically detect `render.yaml` and set up the Backend (FastAPI) and Frontend (Static Site).
+   - **Database**: By default, it uses SQLite. For a persistent database, create a **Render PostgreSQL** instance and copy its `Internal Database URL` to the `DATABASE_URL` environment variable in the Backend service settings.
+4. **Environment Variables**:
+   - `REACT_APP_API_URL`: Automatically linked via the Blueprint.
+   - `FRONTEND_URL`: (Optional) Set this in the Backend service to the URL of your deployed frontend for stricter CORS.
+
+---
+
 ## 🔌 API Endpoints
 
 | Method | Endpoint | Auth | Description |

@@ -9,7 +9,9 @@ services:
     rootDir: backend
     envVars:
       - key: DATABASE_URL
-        value: sqlite:///./test.db
+        value: sqlite:///./test.db # Fallback for free tier
+      - key: PYTHON_VERSION
+        value: 3.10.0
 
   # Frontend: React
   - type: web
@@ -21,6 +23,6 @@ services:
     envVars:
       - key: REACT_APP_API_URL
         fromService:
-          name: respiratory-ai-backend
           type: web
-          property: host
+          name: respiratory-ai-backend
+          property: url
