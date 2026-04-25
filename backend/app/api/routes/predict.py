@@ -10,8 +10,8 @@ from app.services.preprocessing import preprocess_audio
 
 router = APIRouter()
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+# 🔹 Production Fix: Use /tmp/uploads for Render compatibility
+UPLOAD_DIR = "/tmp/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
