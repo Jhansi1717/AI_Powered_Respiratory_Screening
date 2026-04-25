@@ -92,7 +92,8 @@ def predict_tensor(x):
     global model
 
     if model is None:
-        raise Exception("Model not loaded")
+        print("⏳ Loading model on first demand...")
+        load_model()
 
     x = x.to(DEVICE)
 

@@ -20,7 +20,8 @@ from sqlalchemy import text
 # 🔥 Startup (recommended modern style)
 @app.on_event("startup")
 def startup():
-    load_model()
+    # ❌ EMERGENCY: Do NOT load_model() here. It OOMs the Free tier.
+    # load_model()
     # 🔹 Migration: Add 'role' column to 'users' table if it doesn't exist
     try:
         with engine.connect() as conn:
@@ -37,29 +38,10 @@ def startup():
     print("✅ App started successfully")
 
 
-# 🔹 CORS
-# For allow_credentials=True, we must specify origins explicitly.
-origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://respiratory-ai-frontend.onrender.com",
-    "https://respiratory-ai-frontend.onrender.com/",
-]
-
-frontend_url = os.getenv("FRONTEND_URL")
-if frontend_url:
-    origins.append(frontend_url)
-    if frontend_url.endswith("/"):
-        origins.append(frontend_url[:-1])
-    else:
-        origins.append(frontend_url + "/")
-
-# Deduplicate
-origins = list(set(origins))
-
+# 🚨 EMERGENCY: Allow all origins to eliminate CORS blocks during 502/restarts
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
