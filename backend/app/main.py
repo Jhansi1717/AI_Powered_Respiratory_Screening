@@ -1,6 +1,10 @@
 import os
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+import torch
+
+# 🔹 Production Fix: Limit torch threads to save memory on Render Free tier
+torch.set_num_threads(1)
 
 from app.api.routes import predict, history, auth, admin
 from app.services.model import load_model
