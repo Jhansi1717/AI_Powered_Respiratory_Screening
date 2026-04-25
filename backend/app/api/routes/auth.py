@@ -45,14 +45,16 @@ def create_access_token(user_id: int, role: str) -> str:
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
-
 # 🔹 SIGNUP
 @router.post("/signup", response_model=UserResponse)
 def signup(data: UserCreate, db: Session = Depends(get_db)):
     """Create a new user account"""
+    print(f"📥 Received signup request for: {data.email}")
+    
     # Check if user already exists
     existing_user = db.query(User).filter(User.email == data.email).first()
     if existing_user:
+        print(f"⚠️ User already exists: {data.email}")
         raise HTTPException(status_code=400, detail="Email already registered")
 
     try:
@@ -65,13 +67,16 @@ def signup(data: UserCreate, db: Session = Depends(get_db)):
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
+        print(f"✅ User created successfully: {data.email}")
 
         return new_user
 
     except Exception as e:
         db.rollback()
         logger.error(f"Signup error: {str(e)}")
+        print(f"❌ Signup error for {data.email}: {e}")
         raise HTTPException(status_code=500, detail="Signup failed")
+
 
 
 # 🔹 LOGIN
