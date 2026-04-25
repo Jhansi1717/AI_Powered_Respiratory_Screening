@@ -45,8 +45,14 @@ export default function Login({ isDarkMode, toggleTheme, language, setLanguage }
     setLoading(true);
 
     try {
+      // 🔹 Production Fix: Use API_BASE from global config or process.env
+      let API_BASE = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+      if (API_BASE && !API_BASE.startsWith('http')) {
+        API_BASE = `https://${API_BASE}`;
+      }
+
       const response = await axios.post(
-        "http://127.0.0.1:8000/api/login",
+        `${API_BASE}/api/login`,
         { email, password },
         { headers: { "Content-Type": "application/json" } }
       );
