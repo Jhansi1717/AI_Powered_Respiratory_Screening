@@ -1,10 +1,12 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import predict, history, auth, admin
 from app.services.model import load_model
 from app.core.database import Base, engine
+from app.api.deps import get_db
+from sqlalchemy.orm import Session
 
 app = FastAPI()
 
@@ -66,6 +68,22 @@ app.add_middleware(
 @app.get("/")
 def root():
     return {"message": "API is running 🚀"}
+
+@app.get("/api/health")
+def health_check(db: Session = Depends(get_db)):
+    try:
+        # Test DB connection
+        db.execute(text("SELECT 1"))
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "storage": "writable"
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "error": str(e)
+        }
 
 
 # 🔹 Routes (ORDER MATTERS for clarity)
