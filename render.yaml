@@ -9,7 +9,7 @@ services:
     rootDir: backend
     envVars:
       - key: DATABASE_URL
-        value: sqlite:///./test.db # Fallback for free tier
+        value: sqlite:////tmp/test.db # Use /tmp for guaranteed write access on Render
       - key: PYTHON_VERSION
         value: 3.10.0
 
@@ -22,7 +22,4 @@ services:
     rootDir: frontend
     envVars:
       - key: REACT_APP_API_URL
-        fromService:
-          type: web
-          name: respiratory-ai-backend
-          property: host
+        value: https://respiratory-ai-backend.onrender.com

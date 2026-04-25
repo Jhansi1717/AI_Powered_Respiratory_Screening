@@ -34,16 +34,24 @@ def startup():
 
 
 # 🔹 CORS
-# For allow_credentials=True, we cannot use ["*"]. We must specify origins.
+# For allow_credentials=True, we must specify origins explicitly.
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://respiratory-ai-frontend.onrender.com"
+    "https://respiratory-ai-frontend.onrender.com",
+    "https://respiratory-ai-frontend.onrender.com/",
 ]
 
 frontend_url = os.getenv("FRONTEND_URL")
-if frontend_url and frontend_url not in origins:
+if frontend_url:
     origins.append(frontend_url)
+    if frontend_url.endswith("/"):
+        origins.append(frontend_url[:-1])
+    else:
+        origins.append(frontend_url + "/")
+
+# Deduplicate
+origins = list(set(origins))
 
 app.add_middleware(
     CORSMiddleware,

@@ -3,11 +3,8 @@ from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# Use backend directory for database
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-# 🔹 Production Fix: On some PaaS, the app root isn't writable. /tmp always is.
-# But for now, let's try to ensure it's in the current working directory.
-DEFAULT_DATABASE_PATH = Path(os.getcwd()) / "test.db"
+# Use /tmp for database (guaranteed writable on Render)
+DEFAULT_DATABASE_PATH = "/tmp/test.db"
 
 # Prioritize environment variable (for Render/Production)
 DATABASE_URL = os.getenv("DATABASE_URL")
