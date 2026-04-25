@@ -34,9 +34,15 @@ def startup():
 
 
 # 🔹 CORS
-origins = ["*"]
+# For allow_credentials=True, we cannot use ["*"]. We must specify origins.
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://respiratory-ai-frontend.onrender.com"
+]
+
 frontend_url = os.getenv("FRONTEND_URL")
-if frontend_url:
+if frontend_url and frontend_url not in origins:
     origins.append(frontend_url)
 
 app.add_middleware(
