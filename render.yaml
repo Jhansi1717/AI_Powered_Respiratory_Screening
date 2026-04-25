@@ -9,7 +9,7 @@ services:
     rootDir: backend
     envVars:
       - key: DATABASE_URL
-        value: sqlite:////tmp/test.db # Use /tmp for guaranteed write access on Render
+        value: sqlite:////tmp/prod_v1.db # Fresh start for the new system
       - key: PYTHON_VERSION
         value: 3.10.0
 

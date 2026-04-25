@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 app = FastAPI()
 
 # Ensure tables exist before the app starts
+# 🔹 One-time fix: Recreate tables to ensure schema compatibility with new hashing
+# Base.metadata.drop_all(bind=engine) # Uncomment this if you want a complete wipe
 Base.metadata.create_all(bind=engine)
 
 from sqlalchemy import text
