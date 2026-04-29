@@ -1,14 +1,25 @@
 import axios from 'axios';
 
-// 🔹 Production Fix: Hardcode the Render backend URL to ensure no 404s
-const API_BASE = "https://respiratory-ai-backend.onrender.com";
+// 🔹 Smart API routing: Use local backend in development, Render in production
+const API_BASE = window.location.hostname === "localhost" 
+  ? "http://localhost:8000" 
+  : "https://respiratory-ai-backend.onrender.com";
 
 const buildApiError = (error, fallbackDetail) => {
   const apiError = new Error(fallbackDetail);
 
   if (error.response) {
-    apiError.detail = error.response.data?.detail || fallbackDetail;
-    apiError.message = error.response.data?.detail || fallbackDetail;
+    let detail = error.response.data?.detail || fallbackDetail;
+    
+    // Handle FastAPI 422 Validation Errors (List of objects)
+    if (Array.isArray(detail)) {
+      detail = detail.map(err => `${err.loc.join('.')}: ${err.msg}`).join(', ');
+    } else if (typeof detail === 'object') {
+      detail = JSON.stringify(detail);
+    }
+
+    apiError.detail = detail;
+    apiError.message = detail;
     apiError.status = error.response.status;
     apiError.data = error.response.data;
     return apiError;

@@ -191,7 +191,7 @@ export default function Signup({ isDarkMode, toggleTheme, language, setLanguage 
             )}
           </AnimatePresence>
 
-          <div className="space-y-6">
+          <form onSubmit={(e) => { e.preventDefault(); handleSignup(); }} className="space-y-6">
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-black uppercase tracking-widest text-slate-400">{t.emailLabel}</label>
@@ -230,7 +230,7 @@ export default function Signup({ isDarkMode, toggleTheme, language, setLanguage 
             </div>
 
             <button
-              onClick={handleSignup}
+              type="submit"
               disabled={loading}
               className="group relative flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 py-4 text-base font-bold text-white shadow-xl shadow-slate-900/10 transition transform duration-200 hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 active:scale-95 dark:bg-emerald-600 dark:hover:bg-emerald-700 dark:disabled:bg-slate-800"
             >
@@ -247,7 +247,7 @@ export default function Signup({ isDarkMode, toggleTheme, language, setLanguage 
                 </>
               )}
             </button>
-          </div>
+          </form>
 
           <p className="text-center text-sm font-semibold text-slate-500">
             {t.haveAccount}{" "}

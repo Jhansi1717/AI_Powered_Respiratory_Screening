@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 import timm
+import threading
+import time
 from pathlib import Path
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -53,53 +55,68 @@ class Model(nn.Module):
         return self.classifier(features)
 
 
-# 🔹 Global model instance
+# 🔹 Global model instance with thread safety
 model = None
+_model_lock = threading.Lock()
+_model_ready = threading.Event()
 
 
-# 🔹 Load model once
+# 🔹 Load model once (thread-safe)
 def load_model():
     global model
 
-    model = Model().to(DEVICE)
+    with _model_lock:
+        # Double-check: another thread may have loaded it while we waited for the lock
+        if model is not None:
+            return
 
-    try:
-        # Load the weights
-        state_dict = torch.load(MODEL_PATH, map_location=DEVICE, weights_only=True)
-        
-        # Check if weights are from the old model (using backbone.classifier) 
-        # or the new model (using classifier)
-        new_state_dict = {}
-        for k, v in state_dict.items():
-            if k.startswith("backbone.classifier"):
-                # Map old classifier weights to the new classifier head
-                new_key = k.replace("backbone.classifier", "classifier")
-                new_state_dict[new_key] = v
-            else:
-                new_state_dict[k] = v
-        
-        # Load with partial matching
-        model.load_state_dict(new_state_dict, strict=False)
-        model.eval()
-        print("✅ Model loaded successfully (Adaptive Mode)")
+        t0 = time.time()
+        print("⏳ Creating model architecture...")
+        model = Model().to(DEVICE)
 
-    except Exception as e:
-        print("❌ Model loading failed:", str(e))
+        try:
+            # Load the weights
+            state_dict = torch.load(MODEL_PATH, map_location=DEVICE, weights_only=True)
+            
+            # Check if weights are from the old model (using backbone.classifier) 
+            # or the new model (using classifier)
+            new_state_dict = {}
+            for k, v in state_dict.items():
+                if k.startswith("backbone.classifier"):
+                    # Map old classifier weights to the new classifier head
+                    new_key = k.replace("backbone.classifier", "classifier")
+                    new_state_dict[new_key] = v
+                else:
+                    new_state_dict[k] = v
+            
+            # Load with partial matching
+            model.load_state_dict(new_state_dict, strict=False)
+            model.eval()
+            print(f"✅ Model loaded successfully in {time.time()-t0:.2f}s (Adaptive Mode)")
+
+        except Exception as e:
+            print("❌ Model loading failed:", str(e))
+
+        _model_ready.set()
 
 
-# 🔹 Prediction function
+# 🔹 Prediction function (fast, thread-safe)
 def predict_tensor(x):
     global model
 
     if model is None:
-        print("⏳ Loading model on first demand...")
-        load_model()
+        # Wait for background thread to finish loading (max 60s)
+        if not _model_ready.wait(timeout=60):
+            print("⏳ Model still not ready after 60s, force-loading...")
+            load_model()
 
     x = x.to(DEVICE)
 
-    with torch.no_grad():
+    with torch.inference_mode():
+        t0 = time.time()
         out = model(x)
         probs = torch.softmax(out, dim=1)
+        print(f"⚡ Model inference took {time.time()-t0:.3f}s")
 
     conf, pred = torch.max(probs, dim=1)
 

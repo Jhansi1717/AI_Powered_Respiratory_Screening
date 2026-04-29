@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import axios from "axios";
+import { loginUser } from "../services/api";
 import { Link, useNavigate } from "react-router-dom";
 import { setToken } from "../utils/auth";
 import { Stethoscope, Mail, Lock, ArrowRight, Activity, ShieldCheck, Zap, Sun, Moon, AlertCircle, Languages } from "lucide-react";
@@ -35,7 +35,9 @@ export default function Login({ isDarkMode, toggleTheme, language, setLanguage }
     visible: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: "easeOut" } }
   };
 
-  const handleLogin = async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
     if (!email || !password) {
       setError("Please enter both email and password.");
       return;
@@ -45,23 +47,15 @@ export default function Login({ isDarkMode, toggleTheme, language, setLanguage }
     setLoading(true);
 
     try {
-      // 🔹 Production Fix: Hardcode the Render backend URL to ensure no 404s
-      const API_BASE = "https://respiratory-ai-backend.onrender.com";
-
-      const response = await axios.post(
-        `${API_BASE}/api/login`,
-        { email, password },
-        { headers: { "Content-Type": "application/json" } }
-      );
-
-      const token = response.data?.access_token;
+      const data = await loginUser(email, password);
+      const token = data?.access_token;
       if (!token) throw new Error("Invalid login response.");
 
       setToken(token);
       navigate("/dashboard");
     } catch (err) {
       console.error("Login error:", err);
-      setError(err.response?.data?.detail || "Invalid credentials or network error.");
+      setError(err.detail || "Invalid credentials or network error.");
     } finally {
       setLoading(false);
     }
@@ -198,7 +192,7 @@ export default function Login({ isDarkMode, toggleTheme, language, setLanguage }
             )}
           </AnimatePresence>
 
-          <div className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-black uppercase tracking-widest text-slate-400">{t.emailLabel}</label>
@@ -233,7 +227,7 @@ export default function Login({ isDarkMode, toggleTheme, language, setLanguage }
             </div>
 
             <motion.button
-              onClick={handleLogin}
+              type="submit"
               disabled={loading}
               whileHover={{ scale: 1.02, boxShadow: "0 10px 30px -10px rgba(59, 130, 246, 0.5)" }}
               whileTap={{ scale: 0.98 }}
@@ -252,7 +246,7 @@ export default function Login({ isDarkMode, toggleTheme, language, setLanguage }
                 </>
               )}
             </motion.button>
-          </div>
+          </form>
 
           <p className="text-center text-sm font-semibold text-slate-500">
             {t.noAccount}{" "}

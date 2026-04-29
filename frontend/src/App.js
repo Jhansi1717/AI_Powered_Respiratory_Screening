@@ -32,7 +32,7 @@ function App() {
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         <Route path="/" element={<Login isDarkMode={isDarkMode} toggleTheme={toggleTheme} language={language} setLanguage={setLanguage} />} />
         <Route path="/signup" element={<Signup isDarkMode={isDarkMode} toggleTheme={toggleTheme} language={language} setLanguage={setLanguage} />} />

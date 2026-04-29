@@ -678,8 +678,8 @@ export default function Dashboard({ isDarkMode, toggleTheme, language, setLangua
         },
       });
 
-      // Add a small delay for a smoother "analysis" feel
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // 🔹 Production Fix: Removed the artificial 1.5s delay to improve perceived performance
+      // await new Promise(resolve => setTimeout(resolve, 1500));
 
       setProgress(100);
       setResult(response);

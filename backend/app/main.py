@@ -4,7 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 import torch
 
 # 🔹 Production Fix: Limit torch threads to save memory on Render Free tier
-torch.set_num_threads(1)
+# Only apply this if we are running on Render (where the RENDER env var is set)
+if os.getenv("RENDER"):
+    torch.set_num_threads(1)
 
 from app.api.routes import predict, history, auth, admin
 from app.services.model import load_model
@@ -21,11 +23,15 @@ Base.metadata.create_all(bind=engine)
 
 from sqlalchemy import text
 
+import threading
+
 # 🔥 Startup (recommended modern style)
 @app.on_event("startup")
 def startup():
-    # ❌ EMERGENCY: Do NOT load_model() here. It OOMs the Free tier.
-    # load_model()
+    # 🔹 Production Fix: Load model in the BACKGROUND so the server starts instantly
+    # and doesn't time out on Render.
+    threading.Thread(target=load_model, daemon=True).start()
+    
     # 🔹 Migration: Add 'role' column to 'users' table if it doesn't exist
     try:
         with engine.connect() as conn:
