@@ -9,7 +9,8 @@ if os.getenv("RENDER"):
     torch.set_num_threads(1)
 
 from app.api.routes import predict, history, auth, admin
-from app.services.model import load_model
+from app.services.model import load_model, _model_ready
+from app.services.preprocessing import warmup_preprocessing, is_preprocessing_ready
 from app.core.database import Base, engine
 from app.api.deps import get_db
 from sqlalchemy.orm import Session
@@ -30,7 +31,10 @@ import threading
 def startup():
     # Production Fix: Load model in the BACKGROUND so the server starts instantly
     # and doesn't time out on Render.
-    threading.Thread(target=load_model, daemon=True).start()
+    def _startup_tasks():
+        load_model()
+        warmup_preprocessing()
+    threading.Thread(target=_startup_tasks, daemon=True).start()
     
     # Migration: Add 'role' column to 'users' table if it doesn't exist
     try:
@@ -66,12 +70,14 @@ def root():
 @app.get("/api/health")
 def health_check(db: Session = Depends(get_db)):
     try:
-        # Test DB connection
+        # Lightweight DB ping — does not trigger model or preprocessing
         db.execute(text("SELECT 1"))
         return {
             "status": "healthy",
             "database": "connected",
-            "storage": "writable"
+            "storage": "writable",
+            "model_ready": _model_ready.is_set(),
+            "preprocessing_ready": is_preprocessing_ready(),
         }
     except Exception as e:
         return {

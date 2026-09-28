@@ -6,6 +6,7 @@ import tempfile
 import os
 import io
 import time
+import threading
 import soundfile as sf
 from scipy.signal import butter, lfilter
 
@@ -13,6 +14,37 @@ TARGET_SR = 16000
 DURATION = 5
 SAMPLES = TARGET_SR * DURATION
 N_MELS = 128
+
+# Readiness flag: set only after Numba JIT compilation succeeds
+_preprocessing_ready = threading.Event()
+
+
+def is_preprocessing_ready() -> bool:
+    """Non-blocking check. Safe to call from health endpoints."""
+    return _preprocessing_ready.is_set()
+
+
+def warmup_preprocessing():
+    """Pre-compile Numba JIT kernels used by librosa.
+    librosa.feature.melspectrogram uses Numba internally; the first call
+    triggers JIT compilation. This is fast locally but can take much longer
+    on heavily CPU-throttled environments (hypothesis: this contributed to
+    the observed 44s+ request times on Render's 0.1 CPU free tier).
+    Dummy input uses exactly the same parameters as real inference:
+      TARGET_SR=16000, N_MELS=128, SAMPLES=80000 (5s at 16kHz).
+    The readiness flag is set ONLY on success, so /api/predict returns 503
+    until warmup is confirmed complete.
+    """
+    try:
+        t0 = time.time()
+        # Exactly matches real inference: 5s of silence at 16 kHz, 128 mel bins
+        dummy = np.zeros(SAMPLES, dtype=np.float32)
+        librosa.feature.melspectrogram(y=dummy, sr=TARGET_SR, n_mels=N_MELS)
+        print(f"Preprocessing warmup done in {time.time()-t0:.2f}s (Numba JIT compiled)")
+        _preprocessing_ready.set()  # Signal: safe to serve inference requests
+    except Exception as e:
+        # Do NOT set the event -- readiness stays False so /predict returns 503
+        print(f"Preprocessing warmup FAILED: {e}")
 
 def highpass_filter(data, cutoff=100, fs=16000, order=5):
     nyq = 0.5 * fs
