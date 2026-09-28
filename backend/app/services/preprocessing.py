@@ -27,28 +27,43 @@ MIN_AUDIO_BYTES = 4096  # Skip files smaller than 4 KB (likely corrupt/stubs)
 def preprocess_audio(file_path=None, file_bytes=None, file_ext=None):
     t_start = time.time()
     
+    t_read_start = time.time()
+    y, sr = None, TARGET_SR
+    
     if file_path:
-        t0 = time.time()
         ext = os.path.splitext(file_path)[1].lower()
         
-        # FAST PATH: Use soundfile for WAV/FLAC (10x faster than librosa)
+        # FAST PATH: Use soundfile for WAV/FLAC
         if ext in ('.wav', '.flac'):
             try:
-                y, sr = sf.read(file_path, dtype='float32')
+                info = sf.info(file_path)
+                frames_to_read = int(info.samplerate * DURATION)
+                y, orig_sr = sf.read(file_path, frames=frames_to_read, dtype='float32')
                 if y.ndim > 1:
                     y = y.mean(axis=1)  # Convert to mono
-                if sr != TARGET_SR:
-                    y = librosa.resample(y, orig_sr=sr, target_sr=TARGET_SR)
-                print(f"  Audio loaded via soundfile in {time.time()-t0:.3f}s")
+                
+                read_time = time.time() - t_read_start
+                print(f"  Audio read: {read_time:.3f}s (soundfile)")
+                
+                t_resample_start = time.time()
+                if orig_sr != TARGET_SR:
+                    y = librosa.resample(y, orig_sr=orig_sr, target_sr=TARGET_SR)
+                resample_time = time.time() - t_resample_start
+                print(f"  Resampling: {resample_time:.3f}s")
             except Exception:
                 # Fallback to librosa
-                y, sr = librosa.load(file_path, sr=TARGET_SR, mono=True)
-                print(f"  Audio loaded via librosa fallback in {time.time()-t0:.3f}s")
+                t_read_start = time.time()
+                y, orig_sr = librosa.load(file_path, sr=TARGET_SR, mono=True, duration=DURATION)
+                read_time = time.time() - t_read_start
+                print(f"  Audio read: {read_time:.3f}s (librosa fallback)")
+                print(f"  Resampling: 0.000s (handled by librosa)")
         else:
-            # MP3 and other formats: use librosa (which uses ffmpeg/audioread)
+            # MP3 and other formats: use librosa
             try:
-                y, sr = librosa.load(file_path, sr=TARGET_SR, mono=True)
-                print(f"  Audio loaded via librosa in {time.time()-t0:.3f}s")
+                y, orig_sr = librosa.load(file_path, sr=TARGET_SR, mono=True, duration=DURATION)
+                read_time = time.time() - t_read_start
+                print(f"  Audio read: {read_time:.3f}s (librosa)")
+                print(f"  Resampling: 0.000s (handled by librosa)")
             except Exception as e:
                 print(f"Audio Loading Error: {e}")
                 raise e
@@ -59,31 +74,46 @@ def preprocess_audio(file_path=None, file_bytes=None, file_ext=None):
         suffix = file_ext if file_ext and file_ext.startswith(".") else ".wav"
         
         try:
-            t0 = time.time()
             # Try soundfile first for WAV/FLAC bytes
             if suffix in ('.wav', '.flac'):
                 try:
-                    y, sr = sf.read(io.BytesIO(file_bytes), dtype='float32')
+                    f_io = io.BytesIO(file_bytes)
+                    info = sf.info(f_io)
+                    frames_to_read = int(info.samplerate * DURATION)
+                    f_io.seek(0)
+                    y, orig_sr = sf.read(f_io, frames=frames_to_read, dtype='float32')
                     if y.ndim > 1:
                         y = y.mean(axis=1)
-                    if sr != TARGET_SR:
-                        y = librosa.resample(y, orig_sr=sr, target_sr=TARGET_SR)
-                    print(f"  Audio bytes loaded via soundfile in {time.time()-t0:.3f}s")
+                        
+                    read_time = time.time() - t_read_start
+                    print(f"  Audio read: {read_time:.3f}s (soundfile bytes)")
+                    
+                    t_resample_start = time.time()
+                    if orig_sr != TARGET_SR:
+                        y = librosa.resample(y, orig_sr=orig_sr, target_sr=TARGET_SR)
+                    resample_time = time.time() - t_resample_start
+                    print(f"  Resampling: {resample_time:.3f}s")
                 except Exception:
                     # Fallback: write to temp file
                     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
                         tmp.write(file_bytes)
                         tmp_path = tmp.name
-                    y, sr = librosa.load(tmp_path, sr=TARGET_SR, mono=True)
+                    t_read_start = time.time()
+                    y, orig_sr = librosa.load(tmp_path, sr=TARGET_SR, mono=True, duration=DURATION)
                     os.unlink(tmp_path)
-                    print(f"  Audio bytes loaded via librosa fallback in {time.time()-t0:.3f}s")
+                    read_time = time.time() - t_read_start
+                    print(f"  Audio read: {read_time:.3f}s (librosa fallback bytes)")
+                    print(f"  Resampling: 0.000s (handled by librosa)")
             else:
                 with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
                     tmp.write(file_bytes)
                     tmp_path = tmp.name
-                y, sr = librosa.load(tmp_path, sr=TARGET_SR, mono=True)
+                t_read_start = time.time()
+                y, orig_sr = librosa.load(tmp_path, sr=TARGET_SR, mono=True, duration=DURATION)
                 os.unlink(tmp_path)
-                print(f"  Audio bytes loaded via librosa in {time.time()-t0:.3f}s")
+                read_time = time.time() - t_read_start
+                print(f"  Audio read: {read_time:.3f}s (librosa bytes)")
+                print(f"  Resampling: 0.000s (handled by librosa)")
         except Exception as e2:
             try:
                 os.unlink(tmp_path)
@@ -94,10 +124,11 @@ def preprocess_audio(file_path=None, file_bytes=None, file_ext=None):
     else:
         raise ValueError("Either file_path or file_bytes must be provided")
 
-    t0 = time.time()
-    
+    t_filter_start = time.time()
     # Apply High-Pass Filter (remove low-freq hum)
     y = highpass_filter(y, cutoff=100, fs=TARGET_SR)
+    filter_time = time.time() - t_filter_start
+    print(f"  High-pass filter: {filter_time:.3f}s")
 
     # Fix length
     if len(y) < SAMPLES:
@@ -105,6 +136,7 @@ def preprocess_audio(file_path=None, file_bytes=None, file_ext=None):
     else:
         y = y[:SAMPLES]
 
+    t_mel_start = time.time()
     # Mel spectrogram
     mel = librosa.feature.melspectrogram(
         y=y,
@@ -114,17 +146,16 @@ def preprocess_audio(file_path=None, file_bytes=None, file_ext=None):
 
     # dB scale
     mel_db = librosa.power_to_db(mel, ref=np.max)
-    print(f"  Spectrogram computed in {time.time()-t0:.3f}s")
+    mel_time = time.time() - t_mel_start
+    print(f"  Mel spectrogram: {mel_time:.3f}s")
 
     # FAST: Prepare simplified visualization (downsampled to reduce serialization cost)
-    t0 = time.time()
     viz_scaled = ((mel_db - mel_db.min()) / (mel_db.max() - mel_db.min() + 1e-6) * 255).astype(np.uint8)
     # Downsample viz to max 64x64 to speed up JSON serialization
     step_freq = max(1, viz_scaled.shape[0] // 64)
     step_time = max(1, viz_scaled.shape[1] // 64)
     viz_small = viz_scaled[::step_freq, ::step_time]
     viz_data = viz_small.tolist()
-    print(f"  Viz data prepared in {time.time()-t0:.3f}s (shape: {viz_small.shape})")
 
     # Normalize for model
     mel_norm = (mel_db - mel_db.mean()) / (mel_db.std() + 1e-6)
