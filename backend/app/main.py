@@ -3,7 +3,7 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import torch
 
-# 🔹 Production Fix: Limit torch threads to save memory on Render Free tier
+# Production Fix: Limit torch threads to save memory on Render Free tier
 # Only apply this if we are running on Render (where the RENDER env var is set)
 if os.getenv("RENDER"):
     torch.set_num_threads(1)
@@ -25,14 +25,14 @@ from sqlalchemy import text
 
 import threading
 
-# 🔥 Startup (recommended modern style)
+# Startup (recommended modern style)
 @app.on_event("startup")
 def startup():
-    # 🔹 Production Fix: Load model in the BACKGROUND so the server starts instantly
+    # Production Fix: Load model in the BACKGROUND so the server starts instantly
     # and doesn't time out on Render.
     threading.Thread(target=load_model, daemon=True).start()
     
-    # 🔹 Migration: Add 'role' column to 'users' table if it doesn't exist
+    # Migration: Add 'role' column to 'users' table if it doesn't exist
     try:
         with engine.connect() as conn:
             # check if role column exists (sqlite specific check)
@@ -41,14 +41,14 @@ def startup():
             if "role" not in cols:
                 conn.execute(text("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'"))
                 conn.commit()
-                print("✅ Added 'role' column to 'users' table via startup migration")
+                print("Added 'role' column to 'users' table via startup migration")
     except Exception as e:
-        print(f"ℹ️ Startup migration info: {e}")
+        print(f"Startup migration info: {e}")
         
-    print("✅ App started successfully")
+    print("App started successfully")
 
 
-# 🚨 EMERGENCY: Allow all origins to eliminate CORS blocks during 502/restarts
+# EMERGENCY: Allow all origins to eliminate CORS blocks during 502/restarts
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -58,10 +58,10 @@ app.add_middleware(
 )
 
 
-# 🔹 Root check
+# Root check
 @app.get("/")
 def root():
-    return {"message": "API is running 🚀"}
+    return {"message": "API is running"}
 
 @app.get("/api/health")
 def health_check(db: Session = Depends(get_db)):

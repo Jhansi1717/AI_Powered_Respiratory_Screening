@@ -16,11 +16,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/token")
 # 🔹 DB dependency
 def get_db():
     db = SessionLocal()
-
-
-# 🔹 DB dependency
-def get_db():
-    db = SessionLocal()
     try:
         yield db
     finally:

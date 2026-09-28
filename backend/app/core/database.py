@@ -13,7 +13,7 @@ if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
 
 if not DATABASE_URL:
     DATABASE_URL = f"sqlite:///{DEFAULT_DATABASE_PATH}"
-    print(f"📦 Using SQLite at: {DATABASE_URL}")
+    print(f"Using SQLite at: {DATABASE_URL}")
 
 engine = create_engine(
     DATABASE_URL,

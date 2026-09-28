@@ -9,7 +9,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 MODEL_PATH = ROOT_DIR / "model" / "model.pth"
 
-# 🔹 SSL Encoder for Pre-training
+# SSL Encoder for Pre-training
 class SSLAudioEncoder(nn.Module):
     def __init__(self):
         super().__init__()
@@ -32,7 +32,7 @@ class SSLAudioEncoder(nn.Module):
         projected = self.projection_head(features)
         return projected
 
-# 🔹 Standard Diagnostic Model
+# Standard Diagnostic Model
 class Model(nn.Module):
     def __init__(self, encoder=None):
         super().__init__()
@@ -55,13 +55,13 @@ class Model(nn.Module):
         return self.classifier(features)
 
 
-# 🔹 Global model instance with thread safety
+# Global model instance with thread safety
 model = None
 _model_lock = threading.Lock()
 _model_ready = threading.Event()
 
 
-# 🔹 Load model once (thread-safe)
+# Load model once (thread-safe)
 def load_model():
     global model
 
@@ -71,7 +71,7 @@ def load_model():
             return
 
         t0 = time.time()
-        print("⏳ Creating model architecture...")
+        print("Creating model architecture...")
         model = Model().to(DEVICE)
 
         try:
@@ -92,22 +92,22 @@ def load_model():
             # Load with partial matching
             model.load_state_dict(new_state_dict, strict=False)
             model.eval()
-            print(f"✅ Model loaded successfully in {time.time()-t0:.2f}s (Adaptive Mode)")
+            print(f"Model loaded successfully in {time.time()-t0:.2f}s (Adaptive Mode)")
 
         except Exception as e:
-            print("❌ Model loading failed:", str(e))
+            print("Model loading failed:", str(e))
 
         _model_ready.set()
 
 
-# 🔹 Prediction function (fast, thread-safe)
+# Prediction function (fast, thread-safe)
 def predict_tensor(x):
     global model
 
     if model is None:
         # Wait for background thread to finish loading (max 60s)
         if not _model_ready.wait(timeout=60):
-            print("⏳ Model still not ready after 60s, force-loading...")
+            print("Model still not ready after 60s, force-loading...")
             load_model()
 
     x = x.to(DEVICE)
@@ -116,7 +116,7 @@ def predict_tensor(x):
         t0 = time.time()
         out = model(x)
         probs = torch.softmax(out, dim=1)
-        print(f"⚡ Model inference took {time.time()-t0:.3f}s")
+        print(f"Model inference took {time.time()-t0:.3f}s")
 
     conf, pred = torch.max(probs, dim=1)
 
