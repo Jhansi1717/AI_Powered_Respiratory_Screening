@@ -7,7 +7,7 @@ import time
 from app.api.deps import get_current_user_id, get_db
 from app.models.record import Record
 from app.services.model import predict_tensor, _model_ready
-from app.services.preprocessing import preprocess_audio, is_preprocessing_ready
+from app.services.preprocessing import preprocess_audio
 
 router = APIRouter()
 
@@ -22,9 +22,7 @@ async def predict(
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
-    # Non-blocking readiness guard — returns 503 immediately during startup warmup.
-    # Prevents requests from triggering JIT compilation or partial model state.
-    if not _model_ready.is_set() or not is_preprocessing_ready():
+    if not _model_ready.is_set():
         raise HTTPException(
             status_code=503,
             detail="Inference service is warming up. Please retry in a few seconds.",

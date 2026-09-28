@@ -1,4 +1,20 @@
 import os
+# Production Fix: Synchronous Numba JIT warmup BEFORE Uvicorn binds the port.
+# Render allows up to 10 minutes for the port to bind. By doing this here,
+# we avoid holding the GIL *after* Uvicorn starts (which would cause health check timeouts)
+# and we avoid using a subprocess (which causes OOM kills due to two Python interpreters).
+if os.getenv("RENDER"):
+    print("Performing synchronous Numba JIT warmup before Uvicorn binds port...")
+    import time
+    t0 = time.time()
+    try:
+        import numpy as np
+        import librosa
+        librosa.feature.melspectrogram(y=np.zeros(16000*5, dtype=np.float32), sr=16000, n_mels=128)
+        print(f"Synchronous Numba warmup finished in {time.time()-t0:.2f}s")
+    except Exception as e:
+        print(f"Synchronous Numba warmup failed: {e}")
+
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import torch
@@ -10,7 +26,6 @@ if os.getenv("RENDER"):
 
 from app.api.routes import predict, history, auth, admin
 from app.services.model import load_model, _model_ready
-from app.services.preprocessing import warmup_preprocessing, is_preprocessing_ready
 from app.core.database import Base, engine
 from app.api.deps import get_db
 from sqlalchemy.orm import Session
@@ -33,7 +48,6 @@ def startup():
     # and doesn't time out on Render.
     def _startup_tasks():
         load_model()
-        warmup_preprocessing()
     threading.Thread(target=_startup_tasks, daemon=True).start()
     
     # Migration: Add 'role' column to 'users' table if it doesn't exist
@@ -77,7 +91,6 @@ def health_check(db: Session = Depends(get_db)):
             "database": "connected",
             "storage": "writable",
             "model_ready": _model_ready.is_set(),
-            "preprocessing_ready": is_preprocessing_ready(),
         }
     except Exception as e:
         return {

@@ -17,63 +17,7 @@ DURATION = 5
 SAMPLES = TARGET_SR * DURATION
 N_MELS = 128
 
-# Readiness flag: set only after Numba JIT compilation succeeds
-_preprocessing_ready = threading.Event()
 
-
-def is_preprocessing_ready() -> bool:
-    """Non-blocking check. Safe to call from health endpoints."""
-    return _preprocessing_ready.is_set()
-
-
-def warmup_preprocessing():
-    """Pre-compile Numba JIT kernels used by librosa WITHOUT blocking the GIL.
-
-    Problem: librosa.feature.melspectrogram triggers Numba JIT compilation on
-    its first call. Numba holds Python's GIL during compilation (~3s locally,
-    40-60s on Render's 0.1 CPU). Running this in a threading.Thread blocks
-    uvicorn's event loop, causing Render health check timeouts and an infinite
-    restart loop.
-
-    Solution: Run the JIT compilation in a SUBPROCESS (separate Python process
-    with its own GIL). Numba caches compiled functions to __pycache__. After
-    the subprocess finishes, we call the same function in the main process —
-    it hits the Numba cache and completes near-instantly without blocking.
-    """
-    try:
-        t0 = time.time()
-
-        # Step 1: Run Numba JIT in a subprocess so the main process GIL stays free
-        warmup_script = (
-            "import numpy as np; import librosa; "
-            f"librosa.feature.melspectrogram(y=np.zeros({SAMPLES}, dtype=np.float32), "
-            f"sr={TARGET_SR}, n_mels={N_MELS})"
-        )
-        result = subprocess.run(
-            [sys.executable, "-c", warmup_script],
-            timeout=300,  # 5 min max for Render's slow CPU
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            print(f"Subprocess warmup stderr: {result.stderr}")
-            raise RuntimeError(f"Warmup subprocess exited with code {result.returncode}")
-
-        subprocess_time = time.time() - t0
-        print(f"Subprocess Numba JIT done in {subprocess_time:.2f}s")
-
-        # Step 2: Quick in-process call — hits Numba cache, no long GIL block
-        t1 = time.time()
-        dummy = np.zeros(SAMPLES, dtype=np.float32)
-        librosa.feature.melspectrogram(y=dummy, sr=TARGET_SR, n_mels=N_MELS)
-        cache_time = time.time() - t1
-        print(f"In-process cache verification in {cache_time:.2f}s")
-
-        print(f"Preprocessing warmup complete in {time.time()-t0:.2f}s total")
-        _preprocessing_ready.set()  # Signal: safe to serve inference requests
-    except Exception as e:
-        # Do NOT set the event -- readiness stays False so /predict returns 503
-        print(f"Preprocessing warmup FAILED: {e}")
 
 def highpass_filter(data, cutoff=100, fs=16000, order=5):
     nyq = 0.5 * fs
