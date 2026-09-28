@@ -6,9 +6,7 @@ import tempfile
 import os
 import io
 import time
-import threading
-import subprocess
-import sys
+
 import soundfile as sf
 from scipy.signal import butter, lfilter
 
@@ -16,8 +14,53 @@ TARGET_SR = 16000
 DURATION = 5
 SAMPLES = TARGET_SR * DURATION
 N_MELS = 128
+def _power_to_db(S, ref=1.0, amin=1e-10, top_db=80.0):
+    """Pure NumPy implementation of librosa.power_to_db to avoid Numba."""
+    S = np.asarray(S)
+    if callable(ref):
+        ref_value = np.abs(ref(S))
+    else:
+        ref_value = np.abs(ref)
+    
+    log_spec = 10.0 * np.log10(np.maximum(amin, S))
+    log_spec -= 10.0 * np.log10(np.maximum(amin, ref_value))
+    
+    if top_db is not None:
+        log_spec = np.maximum(log_spec, log_spec.max() - top_db)
+    return log_spec
 
 
+def _compute_melspectrogram(y, sr, n_fft=2048, hop_length=512, n_mels=128):
+    """
+    Compute mel spectrogram using PyTorch and NumPy, bypassing librosa's
+    Numba JIT compilation which causes memory bloat (140MB+) and long
+    startup delays.
+    """
+    import torch
+    # 1. Get mel filterbank from librosa (does not trigger Numba JIT)
+    mel_basis = librosa.filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels)
+    mel_basis = torch.from_numpy(mel_basis).float()
+    
+    # 2. Compute STFT using PyTorch
+    y_tensor = torch.from_numpy(y).float()
+    window = torch.hann_window(n_fft).float()
+    stft = torch.stft(
+        y_tensor,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        window=window,
+        return_complex=True,
+        center=True,
+        pad_mode='reflect'
+    )
+    
+    # 3. Power spectrogram
+    power_spec = torch.abs(stft)**2
+    
+    # 4. Mel spectrogram
+    mel_spec = torch.matmul(mel_basis, power_spec)
+    
+    return mel_spec.numpy()
 
 def highpass_filter(data, cutoff=100, fs=16000, order=5):
     nyq = 0.5 * fs
@@ -142,17 +185,19 @@ def preprocess_audio(file_path=None, file_bytes=None, file_ext=None):
         y = y[:SAMPLES]
 
     t_mel_start = time.time()
-    # Mel spectrogram
-    mel = librosa.feature.melspectrogram(
+    # ---------------------------------------------------------
+    # NEW MEMORY-EFFICIENT PATH: Bypass Numba JIT completely
+    # ---------------------------------------------------------
+    mel = _compute_melspectrogram(
         y=y,
         sr=TARGET_SR,
         n_mels=N_MELS
     )
 
     # dB scale
-    mel_db = librosa.power_to_db(mel, ref=np.max)
+    mel_db = _power_to_db(mel, ref=np.max)
     mel_time = time.time() - t_mel_start
-    print(f"  Mel spectrogram: {mel_time:.3f}s")
+    print(f"  Mel spectrogram (PyTorch/NumPy): {mel_time:.3f}s")
 
     # FAST: Prepare simplified visualization (downsampled to reduce serialization cost)
     viz_scaled = ((mel_db - mel_db.min()) / (mel_db.max() - mel_db.min() + 1e-6) * 255).astype(np.uint8)

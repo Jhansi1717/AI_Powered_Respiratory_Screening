@@ -1,19 +1,7 @@
 import os
-# Production Fix: Synchronous Numba JIT warmup BEFORE Uvicorn binds the port.
-# Render allows up to 10 minutes for the port to bind. By doing this here,
-# we avoid holding the GIL *after* Uvicorn starts (which would cause health check timeouts)
-# and we avoid using a subprocess (which causes OOM kills due to two Python interpreters).
-if os.getenv("RENDER"):
-    print("Performing synchronous Numba JIT warmup before Uvicorn binds port...")
-    import time
-    t0 = time.time()
-    try:
-        import numpy as np
-        import librosa
-        librosa.feature.melspectrogram(y=np.zeros(16000*5, dtype=np.float32), sr=16000, n_mels=128)
-        print(f"Synchronous Numba warmup finished in {time.time()-t0:.2f}s")
-    except Exception as e:
-        print(f"Synchronous Numba warmup failed: {e}")
+# Must be set before any other imports to completely disable Numba JIT globally.
+# This prevents a massive 150MB+ memory spike when librosa is used.
+os.environ["NUMBA_DISABLE_JIT"] = "1"
 
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
