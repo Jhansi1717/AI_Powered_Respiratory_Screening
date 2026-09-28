@@ -5,6 +5,18 @@ const API_BASE = window.location.hostname === "localhost"
   ? "http://localhost:8000" 
   : "https://respiratory-ai-backend.onrender.com";
 
+// 🔹 Wake backend from Render Free Tier hibernation
+// Render spins down free instances after 15 min of inactivity.
+// This sends a lightweight health ping to wake it before real requests.
+export const wakeBackend = async () => {
+  try {
+    await axios.get(`${API_BASE}/api/health`, { timeout: 90000 });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const buildApiError = (error, fallbackDetail) => {
   const apiError = new Error(fallbackDetail);
 
@@ -81,7 +93,7 @@ export const uploadFile = async (file, options = {}) => {
   const formData = new FormData();
   formData.append("file", file);
 
-  try {
+  const doPredict = async () => {
     const response = await axios.post(`${API_BASE}/api/predict`, formData, {
       headers: {
         Authorization: `Bearer ${token}`
@@ -92,7 +104,24 @@ export const uploadFile = async (file, options = {}) => {
       timeout: 120000, // 120 second timeout to prevent infinite processing state
     });
     return response.data;
+  };
+
+  try {
+    return await doPredict();
   } catch (error) {
+    // On network error, the backend may be hibernating — wake it and retry once
+    if (!error.response && error.code !== 'ECONNABORTED') {
+      console.log("Backend may be hibernating. Waking up and retrying...");
+      const awake = await wakeBackend();
+      if (awake) {
+        try {
+          return await doPredict();
+        } catch (retryError) {
+          error = retryError; // fall through to normal error handling
+        }
+      }
+    }
+
     // Enhanced error handling for better debugging
     if (error.code === 'ECONNABORTED') {
       const timeoutError = new Error("Request timeout. The analysis took too long to complete.");

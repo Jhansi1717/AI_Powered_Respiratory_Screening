@@ -8,7 +8,7 @@ import {
   Search, ChevronLeft, ChevronRight,
   Moon, Sun, Languages, Download
 } from "lucide-react";
-import { getHistory, uploadFile, getUsers } from "../services/api";
+import { getHistory, uploadFile, getUsers, wakeBackend } from "../services/api";
 import { logout } from "../utils/auth";
 import { translations } from "../utils/translations";
 import { decodeToken } from "../utils/token";
@@ -291,6 +291,8 @@ export default function Dashboard({ isDarkMode, toggleTheme, language, setLangua
 
   useEffect(() => {
     loadHistory();
+    // Pre-wake the Render backend from hibernation so it's ready when user clicks Analyze
+    wakeBackend();
     
     // Check for admin role
     const token = localStorage.getItem("token");
