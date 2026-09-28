@@ -22,11 +22,22 @@ const buildApiError = (error, fallbackDetail) => {
     apiError.message = detail;
     apiError.status = error.response.status;
     apiError.data = error.response.data;
+    
+    // Add error type classification
+    if (error.response.status >= 400 && error.response.status < 500) {
+      apiError.type = error.response.status === 401 || error.response.status === 403 
+        ? 'authentication' 
+        : 'client';
+    } else if (error.response.status >= 500) {
+      apiError.type = 'server';
+    }
+    
     return apiError;
   }
 
   apiError.detail = fallbackDetail;
   apiError.status = null;
+  apiError.type = 'network';
   return apiError;
 };
 
@@ -73,13 +84,31 @@ export const uploadFile = async (file, options = {}) => {
   try {
     const response = await axios.post(`${API_BASE}/api/predict`, formData, {
       headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'multipart/form-data'
+        Authorization: `Bearer ${token}`
+        // NOTE: Do NOT manually set Content-Type for FormData.
+        // The browser/axios will automatically set the correct multipart boundary.
       },
       onUploadProgress: options.onUploadProgress,
+      timeout: 120000, // 120 second timeout to prevent infinite processing state
     });
     return response.data;
   } catch (error) {
+    // Enhanced error handling for better debugging
+    if (error.code === 'ECONNABORTED') {
+      const timeoutError = new Error("Request timeout. The analysis took too long to complete.");
+      timeoutError.detail = "Request timeout. The analysis took too long to complete.";
+      timeoutError.status = null;
+      throw timeoutError;
+    }
+    
+    if (!error.response) {
+      // Network error (no response from server)
+      const networkError = new Error("Network error. Unable to connect to the server.");
+      networkError.detail = "Network error. Unable to connect to the server.";
+      networkError.status = null;
+      throw networkError;
+    }
+    
     throw buildApiError(error, "Upload failed");
   }
 };

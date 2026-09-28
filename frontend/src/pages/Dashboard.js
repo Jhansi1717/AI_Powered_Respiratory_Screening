@@ -694,7 +694,18 @@ export default function Dashboard({ isDarkMode, toggleTheme, language, setLangua
         return;
       }
       setProgress(0);
-      setError(apiError.detail || apiError.message || "Server error");
+      
+      // Enhanced error messaging based on error type
+      let errorMessage = apiError.detail || apiError.message || "Server error";
+      if (apiError.type === 'network') {
+        errorMessage = "Network error. Please check your connection and try again.";
+      } else if (apiError.type === 'authentication') {
+        errorMessage = "Authentication failed. Please login again.";
+      } else if (apiError.type === 'server') {
+        errorMessage = "Server error. Please try again later.";
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
