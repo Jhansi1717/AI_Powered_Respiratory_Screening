@@ -9,6 +9,7 @@ import time
 
 import soundfile as sf  # pyrefly: ignore[missing-import]
 from scipy.signal import butter, lfilter  # pyrefly: ignore[missing-import]
+import soxr  # pyrefly: ignore[missing-import]
 
 TARGET_SR = 16000
 DURATION = 5
@@ -95,7 +96,7 @@ def preprocess_audio(file_path=None, file_bytes=None, file_ext=None):
                 
                 t_resample_start = time.time()
                 if orig_sr != TARGET_SR:
-                    y = librosa.resample(y, orig_sr=orig_sr, target_sr=TARGET_SR)
+                    y = soxr.resample(y, orig_sr, TARGET_SR).astype(np.float32)
                 resample_time = time.time() - t_resample_start
                 print(f"  Resampling: {resample_time:.3f}s")
             except Exception:
@@ -138,7 +139,7 @@ def preprocess_audio(file_path=None, file_bytes=None, file_ext=None):
                     
                     t_resample_start = time.time()
                     if orig_sr != TARGET_SR:
-                        y = librosa.resample(y, orig_sr=orig_sr, target_sr=TARGET_SR)
+                        y = soxr.resample(y, orig_sr, TARGET_SR).astype(np.float32)
                     resample_time = time.time() - t_resample_start
                     print(f"  Resampling: {resample_time:.3f}s")
                 except Exception:
