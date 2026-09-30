@@ -5,7 +5,7 @@ A robust security layer based on **OAuth2 with Password and Bearer (JWT)**, desi
 ## 🏗️ Technical Specifications
 
 ### Security Standards
-- **Hashing**: Argon2 (via `passlib`) — Memory-hard and resistant to GPU-based brute-force attacks.
+- **Hashing**: PBKDF2-SHA256 (via `passlib`) — salted, iterated key derivation.
 - **Tokens**: JSON Web Tokens (JWT) using the `HS256` algorithm.
 - **Protocol**: OAuth2 compliant with `Bearer` token scheme.
 

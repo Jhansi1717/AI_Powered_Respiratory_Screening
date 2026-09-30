@@ -18,19 +18,10 @@ router = APIRouter()
 
 def authenticate_user(email: str, password: str, db: Session) -> User:
     """Validate user credentials and return the matching user."""
-    logger.info(f"Login attempt for email: {email}")
-
     user = db.query(User).filter(User.email == email).first()
-    logger.info(f"User found: {user}")
 
-    if not user:
-        logger.warning(f"No user found with email: {email}")
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-
-    password_valid = verify_password(password, user.password_hash)
-    logger.info(f"Password valid: {password_valid}")
-
-    if not password_valid:
+    if not user or not verify_password(password, user.password_hash):
+        logger.info("Failed login attempt")
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     return user
@@ -49,12 +40,9 @@ def create_access_token(user_id: int, role: str) -> str:
 @router.post("/signup", response_model=UserResponse)
 def signup(data: UserCreate, db: Session = Depends(get_db)):
     """Create a new user account"""
-    print(f"Received signup request for: {data.email}")
-    
     # Check if user already exists
     existing_user = db.query(User).filter(User.email == data.email).first()
     if existing_user:
-        print(f"User already exists: {data.email}")
         raise HTTPException(status_code=400, detail="Email already registered")
 
     try:
@@ -67,14 +55,13 @@ def signup(data: UserCreate, db: Session = Depends(get_db)):
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
-        print(f"User created successfully: {data.email}")
+        logger.info(f"User created with ID: {new_user.id}")
 
         return new_user
 
     except Exception as e:
         db.rollback()
-        logger.error(f"Signup error: {str(e)}")
-        print(f"Signup error for {data.email}: {e}")
+        logger.error(f"Signup error: {type(e).__name__}")
         raise HTTPException(status_code=500, detail="Signup failed")
 
 
@@ -96,7 +83,7 @@ def login(data: UserCreate, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Token generation error: {str(e)}")
+        logger.error(f"Token generation error: {type(e).__name__}")
         raise HTTPException(status_code=500, detail="Token generation failed")
 
 
@@ -116,5 +103,5 @@ def login_for_docs(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Token endpoint error: {str(e)}")
+        logger.error(f"Token endpoint error: {type(e).__name__}")
         raise HTTPException(status_code=500, detail="Token generation failed")

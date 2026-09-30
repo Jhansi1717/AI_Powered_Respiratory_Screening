@@ -2147,7 +2147,6 @@ export default function Dashboard({ isDarkMode, toggleTheme, language, setLangua
             <ul className="space-y-3">
               <li><button onClick={(e) => e.preventDefault()} className="text-xs font-bold text-slate-400 hover:text-blue-600 transition dark:text-slate-500 dark:hover:text-blue-400">Privacy Policy</button></li>
               <li><button onClick={(e) => e.preventDefault()} className="text-xs font-bold text-slate-400 hover:text-blue-600 transition dark:text-slate-500 dark:hover:text-blue-400">Terms of Service</button></li>
-              <li><button onClick={(e) => e.preventDefault()} className="text-xs font-bold text-slate-400 hover:text-blue-600 transition dark:text-slate-500 dark:hover:text-blue-400">HIPAA Compliance</button></li>
             </ul>
           </div>
         </div>

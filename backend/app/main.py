@@ -25,7 +25,7 @@ app = FastAPI()
 # Base.metadata.drop_all(bind=engine) # Uncomment this if you want a complete wipe
 Base.metadata.create_all(bind=engine)
 
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 
 import threading
 
@@ -38,18 +38,17 @@ def startup():
         load_model()
     threading.Thread(target=_startup_tasks, daemon=True).start()
     
-    # Migration: Add 'role' column to 'users' table if it doesn't exist
+    # Non-destructive migration: add 'role' column to 'users' if it is missing
     try:
-        with engine.connect() as conn:
-            # check if role column exists (sqlite specific check)
-            res = conn.execute(text("PRAGMA table_info(users)")).fetchall()
-            cols = [r[1] for r in res]
+        inspector = inspect(engine)
+        if inspector.has_table("users"):
+            cols = {col["name"] for col in inspector.get_columns("users")}
             if "role" not in cols:
-                conn.execute(text("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'"))
-                conn.commit()
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(50) DEFAULT 'user'"))
                 print("Added 'role' column to 'users' table via startup migration")
     except Exception as e:
-        print(f"Startup migration info: {e}")
+        print(f"Startup migration skipped: {type(e).__name__}")
         
     print("App started successfully")
 
@@ -90,9 +89,10 @@ def health_check(db: Session = Depends(get_db)):
             "model_ready": _model_ready.is_set(),
         }
     except Exception as e:
+        print(f"Health check failed: {type(e).__name__}")
         return {
             "status": "unhealthy",
-            "error": str(e)
+            "error": "Health check failed"
         }
 
 

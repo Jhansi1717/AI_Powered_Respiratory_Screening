@@ -1,37 +1,41 @@
-# 🫁 Respiratory AI — Clinical-Grade Diagnostic System
+# 🫁 Respiratory AI — AI-Powered Respiratory Sound Screening
 
-> **Advanced AI-powered screening platform for respiratory health.** Leveraging Self-Supervised Learning (SSL) and EfficientNet-B0 to provide rapid, accurate, and explainable analysis of lung sounds.
+> **AI-assisted screening tool for lung sounds.** An EfficientNet-B0 classifier analyses short respiratory audio recordings and flags patterns consistent with normal breathing, wheezes, crackles, or both. It is a **screening aid only** and does not provide a medical diagnosis.
 
 ---
 
 ## 📋 Overview
 
-Respiratory AI is a professional diagnostic screening platform designed to bridge the gap between complex acoustic signal processing and clinical decision-making. By utilizing a **dual-stage training pipeline** (SSL Pre-training + Supervised Fine-tuning), the system achieves robust pattern recognition even in noisy clinical environments.
+Respiratory AI is a web application (React frontend + FastAPI backend) for uploading or recording respiratory sounds and receiving an AI screening result. The model is trained with a two-stage pipeline: optional SimCLR-style self-supervised pre-training of the encoder, followed by supervised fine-tuning on labelled respiratory recordings (ICBHI 2017 format).
 
 ### 🌟 Key Capabilities
-- **Explainable AI (XAI)**: Provides technical rationales for every diagnostic result.
-- **Low-Latency Engine**: Optimized for sub-2-second inference using multi-threaded execution.
-- **High-Fidelity Signal Processing**: Butterworth filtering and Mel-spectrogram heatmaps for visual verification.
-- **Localization**: Full support for English, Spanish, Hindi, and Telugu.
-- **Clinical Reporting**: Automated PDF generation with clinical verification signatures and specialist recommendations.
+- **4-Class Screening**: Classifies audio as `normal`, `crackle`, `wheeze`, or `mixed`, with per-class probabilities.
+- **Bounded Preprocessing**: Only the first 5 seconds of audio are decoded (16 kHz mono), keeping memory use predictable on small instances.
+- **Signal Processing**: Butterworth high-pass filter and a log-scaled Mel-spectrogram visualisation of the analysed sound.
+- **Rule-Based Interpretation**: Maps model output to a severity level and plain-language guidance in the UI.
+- **Localization**: English, Spanish, Hindi, and Telugu.
+- **Downloadable Report**: Client-side PDF screening report generated in the browser (jsPDF).
+- **History**: Per-user screening history persisted in PostgreSQL.
 
 ---
 
 ## ✨ Features & Architecture
 
-### 🏥 Clinical Intelligence Grid
-| Feature | Technical Implementation | Clinical Value |
-|---------|-------------------------|----------------|
-| **4-Class Detection** | EfficientNet-B0 + CrossEntropy | Categorizes sounds into Normal, Wheeze, Crackle, or Mixed. |
-| **Acoustic Heatmaps** | Librosa + DB-scale Mel-spectrograms | Visualizes the "fingerprint" of the respiratory sound. |
-| **Insight Engine** | Severity mapping & Urgency logic | Translates raw AI data into actionable medical insights. |
+| Feature | Technical Implementation | Purpose |
+|---------|-------------------------|---------|
+| **4-Class Classifier** | EfficientNet-B0 (timm) + linear head, CrossEntropy | Normal, Crackle, Wheeze, or Mixed. |
+| **Mel-Spectrograms** | PyTorch STFT + librosa Mel filterbank (Numba-free), dB scale | Model input and on-screen visualisation. |
+| **Insight Engine** | Severity mapping & urgency logic (frontend) | Translates model output into readable screening guidance. |
 | **Live Oscilloscope** | Web Audio API AnalyserNode | Real-time feedback during audio recording. |
+| **Persistence** | SQLAlchemy + PostgreSQL (SQLite fallback for local dev) | Users and screening history. |
+| **Auth** | JWT (python-jose) + PBKDF2-SHA256 password hashing (passlib) | Per-user data isolation and admin role. |
 
-### 🤖 Training Pipeline (SSL)
-The system uses **SimCLR-style Contrastive Learning** to learn robust features from unlabeled audio before being fine-tuned on the gold-standard ICBHI 2017 dataset.
-
-1. **Stage 1 (Pre-training)**: Learns acoustic representations via noise injection and frequency masking.
-2. **Stage 2 (Fine-tuning)**: Adapts the encoder for specific respiratory disease classification.
+### 🔊 Inference Pipeline
+1. Upload validated (`.wav`, `.mp3`, `.flac`, `.webm`, max 10 MB).
+2. First 5 seconds decoded and resampled to 16 kHz mono (`soundfile` fast path for WAV/FLAC, `librosa` otherwise), padded if shorter.
+3. 100 Hz Butterworth high-pass filter.
+4. 128-band Mel-spectrogram → dB → normalised → resized to 128×128.
+5. EfficientNet-B0 inference → softmax over 4 classes.
 
 ---
 
@@ -69,13 +73,13 @@ npm start
 
 ---
 
-## ⚙️ Performance Optimizations (v2.0)
+## ⚙️ Deployment Notes
 
-Recent updates have significantly reduced diagnostic latency:
-- **Smart Routing**: Automatic detection of `localhost` vs `production` API endpoints.
-- **Hardware Acceleration**: Multi-threaded Torch inference enabled for local development.
-- **I/O Optimization**: Replaced legacy decoding with `soundfile`, resulting in **10x faster** audio loading for WAV/FLAC.
-- **Data Downsampling**: Reduced visualization payload by 60% for snappier UI rendering.
+- Deployed on Render (`render.yaml`): `respiratory-ai-backend` (FastAPI), `respiratory-ai-frontend` (static React build), and the `respiratory-ai-db` PostgreSQL database.
+- `DATABASE_URL` is provided by Render; without it the backend falls back to a local SQLite file for development.
+- `SECRET_KEY` is **required** on Render (the backend refuses to start without it). A development-only fallback is used locally.
+- Uploaded audio is written to a temporary file under `/tmp/uploads` for processing and deleted after each request; only the original filename and result are stored.
+- Torch runs single-threaded on Render and Numba JIT is disabled to stay within the free-tier memory limit.
 
 ---
 
@@ -91,11 +95,11 @@ Recent updates have significantly reduced diagnostic latency:
 
 ---
 
-## 📊 Diagnostic Validation (Benchmarks)
+## 📊 Sample Outputs
 
-Tested with ICBHI respiratory audio samples and varied audio formats:
+Example predictions on ICBHI samples and varied audio formats. These are illustrative outputs, **not a clinical validation study**:
 
-| Audio Type | Prediction | Clinical Mapping | Severity | Confidence |
+| Audio Type | Prediction | Mapping | Severity | Confidence |
 |-----------|-----------|-----------------|----------|------------|
 | Crackle WAV | `crackle` | Fluid or Mucus Presence | Moderate | 28.0% |
 | Normal WAV | `normal` | Normal Respiratory Pattern | Low | 26.4% |
@@ -106,17 +110,17 @@ Tested with ICBHI respiratory audio samples and varied audio formats:
 
 ## 🤖 Deep Learning Pipeline
 
-### Stage 1: Contrastive Pre-training (SSL)
-Uses SimCLR-style contrastive learning on unlabeled audio to learn robust acoustic representations.
+### Stage 1: Self-Supervised Pre-training (optional)
+`backend/ml/train_ssl.py` — SimCLR-style contrastive learning on unlabelled audio.
 - **Backbone**: EfficientNet-B0
-- **Pretext Task**: NT-Xent Contrastive Loss
-- **Output**: `ssl_encoder.pth`
+- **Pretext Task**: NT-Xent contrastive loss with noise injection and frequency masking augmentations
+- **Output**: `model/ssl_encoder.pth`
 
 ### Stage 2: Supervised Fine-tuning
-Adapts the pre-trained backbone for 4-class respiratory classification.
-- **Classes**: Normal, Wheeze, Crackle, Mixed
+`backend/ml/train_supervised.py` — initialises the backbone from `ssl_encoder.pth` when present, then trains the 4-class head.
+- **Classes**: Normal, Crackle, Wheeze, Mixed
 - **Optimizer**: Adam (lr=1e-5)
-- **Output**: `model.pth`
+- **Output**: `model/model.pth` (the only weights loaded at inference time)
 
 ---
 
@@ -141,18 +145,23 @@ respiratory-ai/
 ---
 
 ## 🛡️ Security & Privacy
-- **JWT Protection**: All diagnostic data is isolated per user and secured via JSON Web Tokens.
-- **Secure Hashing**: Argon2/Bcrypt implementation for sensitive credential storage.
-- **CORS Policy**: Restricted origins for production-grade security.
+- **JWT Protection**: Screening history is isolated per user; the frontend discards expired or malformed tokens.
+- **Password Hashing**: PBKDF2-SHA256 via passlib.
+- **Upload Hardening**: Extension allow-list, 10 MB size limit, server-generated temporary filenames, and generic error messages.
+- **CORS Policy**: Restricted to the local dev and production frontend origins.
+- **Logging**: Passwords, password-check results, and user records are not logged.
+
+This project has not been audited for HIPAA or any other regulatory compliance and should not be used to store real patient data.
 
 ---
 
 ## 🚧 Future Roadmap
-- [ ] **Full ICBHI Training**: Complete dataset training for 90%+ accuracy.
-- [ ] **Cloud Migration**: AWS S3 for audio storage & PostgreSQL for production.
+- [ ] **Full ICBHI Training**: Train on the complete dataset and publish evaluation metrics.
+- [ ] **Object Storage**: AWS S3 for audio storage.
 - [ ] **EHR Integration**: HL7/FHIR standards for electronic health record connectivity
 - [ ] **Model Explainability**: Grad-CAM visualization for spectrogram heatmaps
-- [ ] **Batch Processing**: Multi-sample upload and analysis for clinical workflows
+- [ ] **Batch Processing**: Multi-sample upload and analysis
+- [x] **PostgreSQL Persistence**
 - [x] **Multi-Format Audio**: Support for WAV, MP3, FLAC, WebM
 - [x] **Multi-Language**: English, Spanish, Hindi, Telugu support
 
@@ -160,11 +169,10 @@ respiratory-ai/
 
 ## ⚕️ Clinical Safety Disclaimer
 
-> **IMPORTANT**: This system is designed for **screening and screening support only**. All generated reports include mandatory disclaimers emphasizing that results are non-diagnostic and require verification by a licensed medical professional. This tool is not a substitute for clinical judgment.
+> **IMPORTANT**: This system is intended for **screening support only**. It is not a medical device, has not been clinically validated, and does not provide a diagnosis. Results must be reviewed by a licensed medical professional and are not a substitute for clinical judgment.
 
 ---
 
 ## 👤 Author
 
-**Bhukya Jhansi**  
-Developed with a focus on clinical excellence and AI-driven respiratory diagnostics.
+**Bhukya Jhansi**

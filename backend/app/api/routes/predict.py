@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 import os
 import uuid
 import time
+import traceback
 
 from app.api.deps import get_current_user_id, get_db
 from app.models.record import Record
@@ -14,6 +15,9 @@ router = APIRouter()
 # Production Fix: Use /tmp/uploads for Render compatibility
 UPLOAD_DIR = "/tmp/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+ALLOWED_EXTENSIONS = (".wav", ".mp3", ".flac", ".webm")
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 
 
 @router.post("/predict")
@@ -28,25 +32,30 @@ async def predict(
             detail="Inference service is warming up. Please retry in a few seconds.",
         )
 
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Missing file name")
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    if file_ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Invalid audio format")
+
     t_total = time.time()
-    contents = await file.read()
+    contents = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(contents) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum upload size is {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
+        )
+
+    # Server-generated name avoids path traversal via the client-supplied filename
+    file_path = os.path.join(UPLOAD_DIR, f"{uuid.uuid4().hex}{file_ext}")
 
     try:
-        if not file.filename:
-            raise HTTPException(status_code=400, detail="Missing file name")
-        if not file.filename.lower().endswith((".wav", ".mp3", ".flac", ".webm")):
-            raise HTTPException(status_code=400, detail="Invalid audio format")
-
-        unique_name = f"{uuid.uuid4()}_{file.filename}"
-        file_path = os.path.join(UPLOAD_DIR, unique_name)
-
         t0 = time.time()
         with open(file_path, "wb") as buffer:
             buffer.write(contents)
         print(f"File saved in {time.time()-t0:.3f}s ({len(contents)} bytes)")
+        del contents
 
-        file_ext = os.path.splitext(file.filename)[1].lower() if file.filename else ".wav"
-        
         t0 = time.time()
         spectrogram, viz_data = preprocess_audio(file_path=file_path, file_ext=file_ext)
         print(f"Preprocessing done in {time.time()-t0:.3f}s")
@@ -73,10 +82,20 @@ async def predict(
         
     except HTTPException:
         raise
-    except Exception as exc:
+    except Exception:
         db.rollback()
-        print(f"Predict error after {time.time()-t_total:.3f}s: {exc}")
-        raise HTTPException(status_code=500, detail=str(exc))
+        print(f"Predict error after {time.time()-t_total:.3f}s")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail="Audio analysis failed. Please upload a valid audio file and try again.",
+        )
+    finally:
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except OSError:
+            print("Failed to remove temporary upload")
 
     return {
         "filename": file.filename,
