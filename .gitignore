@@ -6,11 +6,30 @@ build/
 
 # Python
 .venv/
+venv/
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
+.pytest_cache/
+
+# Runtime uploads
 backend/uploads/*
 !backend/uploads/.gitkeep
+backend/app/uploads/*
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Runtime / test audio files
+*.wav
+*.mp3
+*.flac
+*.webm
+
+# Model weights must stay tracked
+!backend/model/model.pth
 
 # OS
 .DS_Store
