@@ -697,14 +697,25 @@ export default function Dashboard({ isDarkMode, toggleTheme, language, setLangua
       }
       setProgress(0);
       
-      // Enhanced error messaging based on error type
-      let errorMessage = apiError.detail || apiError.message || "Server error";
-      if (apiError.type === 'network') {
-        errorMessage = "Network error. Please check your connection and try again.";
-      } else if (apiError.type === 'authentication') {
-        errorMessage = "Authentication failed. Please login again.";
-      } else if (apiError.type === 'server') {
-        errorMessage = "Server error. Please try again later.";
+      // Enhanced error messaging based on error type and status
+      let errorMessage = "Upload failed. Please try again.";
+      
+      if (apiError.status === 400 || apiError.status === 422) {
+        errorMessage = `Request error: ${apiError.detail || "Invalid audio format or request data."}`;
+      } else if (apiError.status === 401 || apiError.status === 403) {
+        errorMessage = "Authentication problem. Please log in again.";
+      } else if (apiError.status === 500) {
+        errorMessage = "Backend exception occurred. Please try again later.";
+      } else if (apiError.status === 502) {
+        errorMessage = "Service gateway error. The backend may have crashed or is restarting.";
+      } else if (apiError.status === 503) {
+        errorMessage = "Service is currently warming up or unavailable. Please retry in a few seconds.";
+      } else if (apiError.type === 'network') {
+        errorMessage = "Network connectivity failure. Please check your internet connection.";
+      } else if (apiError.message && apiError.message.toLowerCase().includes("timeout")) {
+        errorMessage = "Request timeout. The analysis took too long.";
+      } else if (apiError.detail) {
+        errorMessage = apiError.detail;
       }
       
       setError(errorMessage);

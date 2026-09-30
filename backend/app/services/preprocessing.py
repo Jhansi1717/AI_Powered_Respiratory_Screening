@@ -1,14 +1,14 @@
-import librosa
-import numpy as np
-import torch
-import torch.nn.functional as F
+import librosa  # pyrefly: ignore[missing-import]
+import numpy as np  # pyrefly: ignore[missing-import]
+import torch  # pyrefly: ignore[missing-import]
+import torch.nn.functional as F  # pyrefly: ignore[missing-import]
 import tempfile
 import os
 import io
 import time
 
-import soundfile as sf
-from scipy.signal import butter, lfilter
+import soundfile as sf  # pyrefly: ignore[missing-import]
+from scipy.signal import butter, lfilter  # pyrefly: ignore[missing-import]
 
 TARGET_SR = 16000
 DURATION = 5

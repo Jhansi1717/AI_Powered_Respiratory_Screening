@@ -54,10 +54,15 @@ def startup():
     print("App started successfully")
 
 
-# EMERGENCY: Allow all origins to eliminate CORS blocks during 502/restarts
+# Configure CORS for security
+origins = [
+    "http://localhost:3000",
+    "https://respiratory-ai-frontend.onrender.com"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -72,12 +77,16 @@ def root():
 @app.get("/api/health")
 def health_check(db: Session = Depends(get_db)):
     try:
-        # Lightweight DB ping — does not trigger model or preprocessing
+        # Lightweight DB ping
         db.execute(text("SELECT 1"))
+        
+        # Check storage
+        storage_writable = os.access("/tmp", os.W_OK)
+        
         return {
             "status": "healthy",
             "database": "connected",
-            "storage": "writable",
+            "storage": "writable" if storage_writable else "read-only",
             "model_ready": _model_ready.is_set(),
         }
     except Exception as e:

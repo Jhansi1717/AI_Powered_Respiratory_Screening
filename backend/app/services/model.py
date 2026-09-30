@@ -5,6 +5,14 @@ import threading
 import time
 from pathlib import Path
 
+import psutil
+import os
+
+def log_memory(label):
+    process = psutil.Process(os.getpid())
+    rss = process.memory_info().rss / (1024 * 1024)
+    print(f"[MEMORY] {label}: {rss:.2f} MB")
+
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 MODEL_PATH = ROOT_DIR / "model" / "model.pth"
@@ -71,6 +79,7 @@ def load_model():
             return
 
         t0 = time.time()
+        log_memory("Before model creation")
         print("Creating model architecture...")
         model = Model().to(DEVICE)
 
@@ -93,9 +102,12 @@ def load_model():
             model.load_state_dict(new_state_dict, strict=False)
             model.eval()
             print(f"Model loaded successfully in {time.time()-t0:.2f}s (Adaptive Mode)")
+            log_memory("After model load")
 
         except Exception as e:
             print("Model loading failed:", str(e))
+            # Do not set _model_ready so that /predict continues returning 503
+            return
 
         _model_ready.set()
 
@@ -104,11 +116,9 @@ def load_model():
 def predict_tensor(x):
     global model
 
-    if model is None:
-        # Wait for background thread to finish loading (max 60s)
-        if not _model_ready.wait(timeout=60):
-            print("Model still not ready after 60s, force-loading...")
-            load_model()
+    if not _model_ready.is_set():
+        # The route already checks this and returns 503, but just in case
+        raise RuntimeError("Model is not ready for prediction")
 
     x = x.to(DEVICE)
 

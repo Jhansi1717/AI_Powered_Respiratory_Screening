@@ -3,7 +3,7 @@ import os
 
 SECRET_KEY = os.getenv(
     "SECRET_KEY",
-    "540b6cad625f675b67cf82500a4d468bf4fd4a84066a044c9ffe875f6aaac9d9"
+    "dev_secret_key_only_for_local_development"
 )
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_HOURS = int(os.getenv("ACCESS_TOKEN_EXPIRE_HOURS", "24"))

@@ -6,7 +6,7 @@ import time
 
 from app.api.deps import get_current_user_id, get_db
 from app.models.record import Record
-from app.services.model import predict_tensor, _model_ready
+from app.services.model import predict_tensor, _model_ready, log_memory
 from app.services.preprocessing import preprocess_audio
 
 router = APIRouter()
@@ -50,16 +50,18 @@ async def predict(
         t0 = time.time()
         spectrogram, viz_data = preprocess_audio(file_path=file_path, file_ext=file_ext)
         print(f"Preprocessing done in {time.time()-t0:.3f}s")
+        log_memory("After preprocessing")
         
         spectrogram = spectrogram.unsqueeze(0)
         
         t0 = time.time()
         prediction, confidence, probabilities = predict_tensor(spectrogram)
         print(f"Prediction done in {time.time()-t0:.3f}s")
+        log_memory("After inference")
 
         record = Record(
             user_id=user_id,
-            file_url=file_path,
+            file_url=file.filename,  # Store original filename, not ephemeral /tmp path
             prediction=prediction,
             confidence=confidence,
         )
