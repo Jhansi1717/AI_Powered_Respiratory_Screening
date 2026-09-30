@@ -11,6 +11,21 @@ __pycache__/
 .ipynb_checkpoints/
 backend/uploads/*
 !backend/uploads/.gitkeep
+backend/app/uploads/*
+
+# Runtime databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Runtime / test audio
+*.wav
+*.mp3
+*.flac
+*.webm
+
+# Model weights (keep tracked)
+!backend/model/model.pth
 
 # OS
 .DS_Store

@@ -1508,7 +1508,7 @@ export default function Dashboard({ isDarkMode, toggleTheme, language, setLangua
                 </div>
                 <div className="flex h-fit items-center gap-2 rounded-2xl bg-blue-50 px-4 py-2 text-xs font-black uppercase tracking-widest text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
                   <ShieldCheck size={16} />
-                  Clinical Grade Analysis
+                  AI Screening Analysis
                 </div>
               </div>
 
@@ -2147,7 +2147,6 @@ export default function Dashboard({ isDarkMode, toggleTheme, language, setLangua
             <ul className="space-y-3">
               <li><button onClick={(e) => e.preventDefault()} className="text-xs font-bold text-slate-400 hover:text-blue-600 transition dark:text-slate-500 dark:hover:text-blue-400">Privacy Policy</button></li>
               <li><button onClick={(e) => e.preventDefault()} className="text-xs font-bold text-slate-400 hover:text-blue-600 transition dark:text-slate-500 dark:hover:text-blue-400">Terms of Service</button></li>
-              <li><button onClick={(e) => e.preventDefault()} className="text-xs font-bold text-slate-400 hover:text-blue-600 transition dark:text-slate-500 dark:hover:text-blue-400">HIPAA Compliance</button></li>
             </ul>
           </div>
         </div>
