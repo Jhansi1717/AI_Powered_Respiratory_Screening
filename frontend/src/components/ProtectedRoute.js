@@ -1,13 +1,22 @@
 import { Navigate } from "react-router-dom";
+import { decodeToken } from "../utils/token";
+import { getToken, removeToken } from "../utils/auth";
+
+const isTokenValid = (token) => {
+  const payload = decodeToken(token);
+  if (!payload || typeof payload.exp !== "number") return false;
+  return payload.exp * 1000 > Date.now();
+};
 
 /**
- * ProtectedRoute component that checks authentication before rendering children
- * Redirects to login if user is not authenticated
+ * ProtectedRoute component that checks authentication before rendering children.
+ * Redirects to login if the JWT is missing, malformed, or expired.
  */
 const ProtectedRoute = ({ children }) => {
-  const token = localStorage.getItem("token");
+  const token = getToken();
 
-  if (!token) {
+  if (!token || !isTokenValid(token)) {
+    if (token) removeToken();
     return <Navigate to="/" replace />;
   }
 

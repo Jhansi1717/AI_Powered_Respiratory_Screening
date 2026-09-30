@@ -61,7 +61,7 @@ export const translations = {
     noAccount: "Don't have an account?",
     createAccount: "Create an account",
     forgotPassword: "Forgot password?",
-    clinicalMarketingTitle: "Clinical-grade audio analysis, simplified.",
+    clinicalMarketingTitle: "AI-assisted respiratory sound screening, simplified.",
     clinicalMarketingDesc: "Leverage deep learning to detect respiratory patterns with high precision.",
     
     // Signup
@@ -167,7 +167,7 @@ export const translations = {
     noAccount: "¿No tienes una cuenta?",
     createAccount: "Crear una cuenta",
     forgotPassword: "¿Olvidaste tu contraseña?",
-    clinicalMarketingTitle: "Análisis de audio de grado clínico, simplificado.",
+    clinicalMarketingTitle: "Detección de sonidos respiratorios asistida por IA, simplificada.",
     clinicalMarketingDesc: "Aproveche el aprendizaje profundo para detectar patrones respiratorios con alta precisión.",
     
     // Signup
@@ -273,7 +273,7 @@ export const translations = {
     noAccount: "क्या आपके पास खाता नहीं है?",
     createAccount: "एक खाता बनाएँ",
     forgotPassword: "पासवर्ड भूल गए?",
-    clinicalMarketingTitle: "नैदानिक-ग्रेड ऑडियो विश्लेषण, सरलीकृत।",
+    clinicalMarketingTitle: "एआई-सहायता प्राप्त श्वसन ध्वनि स्क्रीनिंग, सरलीकृत।",
     clinicalMarketingDesc: "उच्च सटीकता के साथ श्वसन पैटर्न का पता लगाने के लिए गहरी शिक्षा का लाभ उठाएं।",
     
     // Signup
@@ -379,7 +379,7 @@ export const translations = {
     noAccount: "ఖాతా లేదా?",
     createAccount: "ఖాతాను సృష్టించండి",
     forgotPassword: "పాస్‌వర్డ్ మర్చిపోయారా?",
-    clinicalMarketingTitle: "క్లినికల్-గ్రేడ్ ఆడియో విశ్లేషణ, సరళీకృతం.",
+    clinicalMarketingTitle: "AI-సహాయక శ్వాస ధ్వని స్క్రీనింగ్, సరళీకృతం.",
     clinicalMarketingDesc: "అధిక ఖచ్చితత్వంతో శ్వాసకోశ నమూనాలను గుర్తించడానికి డీప్ లెర్నింగ్‌ని ఉపయోగించుకోండి.",
     
     // Signup

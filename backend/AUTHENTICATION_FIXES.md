@@ -61,7 +61,7 @@ Your FastAPI authentication backend has been fixed and is now fully functional. 
 ✅ **Signup Endpoint** (`POST /api/signup`)
    - Accepts JSON body with email and password.
    - Automatically assigns the "user" role to new signups.
-   - Validates email format and hashes password with argon2/bcrypt.
+   - Validates email format and hashes password with PBKDF2-SHA256.
 
 ✅ **Login Endpoint** (`POST /api/login`)
    - Verifies credentials and returns a JWT token.
@@ -79,7 +79,7 @@ Your FastAPI authentication backend has been fixed and is now fully functional. 
    - Secure SECRET_KEY
 
 ✅ **Password Security**
-   - Bcrypt hashing with passlib
+   - PBKDF2-SHA256 hashing with passlib
    - Passwords never stored in plaintext
    - Secure password verification
 
@@ -168,7 +168,7 @@ created_at: DateTime
 
 ### Authentication Flow
 1. User submits email + password to `/api/signup`
-2. Password is hashed with bcrypt and stored
+2. Password is hashed with PBKDF2-SHA256 and stored
 3. User logs in with email + password to `/api/login`
 4. Server validates credentials and returns JWT token
 5. Client includes token in `Authorization: Bearer <token>` header
@@ -176,7 +176,7 @@ created_at: DateTime
 7. Protected routes use `get_current_user` dependency
 
 ### Security Features
-- Passwords hashed with bcrypt (industry standard)
+- Passwords hashed with PBKDF2-SHA256 (salted)
 - JWT tokens with 24-hour expiration
 - Secure random SECRET_KEY
 - Email validation with Pydantic

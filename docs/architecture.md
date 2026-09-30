@@ -22,7 +22,7 @@ This project is a professional-grade clinical AI system designed to screen for r
 ### 2. Backend (FastAPI)
 - **Prediction API** (`/api/predict`): Orchestrates the diagnostic flow — audio receiving → format validation → preprocessing → model inference → database persistence → response with clinical data.
 - **Preprocessing Pipeline**: Dual-strategy audio loading (SoundFile → Librosa fallback) with high-pass filtering, resampling, and Mel-spectrogram extraction.
-- **RBAC Security**: JWT-based authentication (Python-JOSE) with Argon2 password hashing and distinct User/Admin permission levels.
+- **RBAC Security**: JWT-based authentication (Python-JOSE) with PBKDF2-SHA256 password hashing and distinct User/Admin permission levels.
 - **Admin Services**: Endpoints for system monitoring, user management, and global analytics.
 - **History API**: Paginated analysis history with server-side search capabilities.
 
@@ -223,7 +223,7 @@ npm install && npm start
 ## Security Model
 
 - **Authentication**: JWT with configurable expiration via Python-JOSE.
-- **Password Security**: Argon2 hashing (memory-hard, GPU-resistant) via Passlib.
+- **Password Security**: PBKDF2-SHA256 hashing via Passlib.
 - **Authorization**: Role-based access control. Admin users can access `/api/admin/*` routes.
 - **Data Privacy**: User history is isolated per-user. CORS configured with origin restrictions.
 - **Startup Migration**: Auto-adds `role` column to existing `users` table on first startup.

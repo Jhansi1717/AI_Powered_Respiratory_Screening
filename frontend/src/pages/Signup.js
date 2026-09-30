@@ -155,7 +155,7 @@ export default function Signup({ isDarkMode, toggleTheme, language, setLanguage 
               <div key={i} className="h-10 w-10 rounded-full border-2 border-emerald-950 bg-slate-200 ring-2 ring-emerald-500/20" />
             ))}
           </div>
-          <p className="text-sm font-bold text-emerald-100/60">Joined by 1,000+ professionals</p>
+          <p className="text-sm font-bold text-emerald-100/60">Built for respiratory screening support</p>
         </div>
       </section>
 

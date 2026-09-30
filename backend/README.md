@@ -36,7 +36,7 @@ uvicorn app.main:app --reload --port 8000
 - **Inference**: Optimized with multi-threaded Torch and `inference_mode`.
 
 ### 🔐 Security Model
-- **Auth**: JWT-based authentication with Argon2 password hashing.
+- **Auth**: JWT-based authentication with PBKDF2-SHA256 password hashing.
 - **RBAC**: Role-Based Access Control (Admin/User).
 - **Validation**: Strict Pydantic schemas for all request/response bodies.
 
