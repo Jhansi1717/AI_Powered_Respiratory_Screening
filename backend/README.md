@@ -1,51 +1,110 @@
-# 🧠 Respiratory AI — Backend (FastAPI)
+# Respiratory AI Backend
 
-The high-performance core of the Respiratory AI platform. This service handles audio preprocessing, AI model inference, and secure user management.
+FastAPI service for authentication, respiratory-audio preprocessing, EfficientNet-B0 inference, and per-user screening history.
 
-## 🚀 Getting Started
+## Runtime
 
-### 1. Virtual Environment
+- Python 3.10
+- FastAPI + Uvicorn
+- SQLAlchemy
+- PostgreSQL in Render production
+- SQLite fallback for local development
+- PyTorch + timm
+- librosa + SoundFile + SoXR + SciPy
+
+## Run locally
+
 ```bash
+cd backend
 python -m venv venv
+
 # Windows
 venv\Scripts\activate
-# Unix
+
+# macOS/Linux
 source venv/bin/activate
-```
 
-### 2. Install Dependencies
-```bash
 pip install -r requirements.txt
-```
-
-### 3. Start Server
-```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
-## 🏗️ Technical Architecture
+Interactive docs:
 
-### 🎙️ Audio Processing Pipeline
-1. **Dynamic Decoding**: Uses `soundfile` for high-speed WAV/FLAC processing.
-2. **Signal Enhancement**: Applies Butterworth high-pass filtering (100Hz) to isolate lung sounds.
-3. **Spectrogram Generation**: Computes DB-scale Mel-spectrograms for AI consumption.
+- http://localhost:8000/docs
+- http://localhost:8000/redoc
 
-### 🤖 AI Model
-- **Architecture**: EfficientNet-B0 with a custom classification head.
-- **Training**: Dual-stage SSL (Self-Supervised Learning) pre-training.
-- **Inference**: Optimized with multi-threaded Torch and `inference_mode`.
+## Endpoints
 
-### 🔐 Security Model
-- **Auth**: JWT-based authentication with PBKDF2-SHA256 password hashing (passlib).
-- **RBAC**: Role-Based Access Control (Admin/User).
-- **Validation**: Strict Pydantic schemas for all request/response bodies.
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/api/health` | No | Database, storage, and model readiness |
+| POST | `/api/signup` | No | Create a user |
+| POST | `/api/login` | No | Return a JWT |
+| POST | `/api/token` | No | OAuth2-compatible token endpoint for Swagger |
+| POST | `/api/predict` | JWT | Analyze audio |
+| GET | `/api/history` | JWT | Current user's analysis history |
+| GET | `/api/admin/users` | Admin JWT | List registered users |
 
-## 🔌 API Documentation
-- **Interactive Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Alternative (ReDoc)**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+## Prediction pipeline
 
-## 📁 Key Directories
-- `/app/api`: Endpoint routing logic.
-- `/app/services`: Audio engineering and ML inference code.
-- `/app/models`: Database schema definitions (SQLAlchemy).
-- `/ml`: Model training and evaluation scripts.
+```text
+Upload
+  ↓
+Extension + 10 MB limit
+  ↓
+First 5 seconds
+  ↓
+Mono / 16 kHz
+  ↓
+SoXR resampling where required
+  ↓
+100 Hz Butterworth high-pass filter
+  ↓
+128-band Mel spectrogram
+  ↓
+dB + normalization + 128×128 resize
+  ↓
+EfficientNet-B0
+  ↓
+4-class softmax
+```
+
+The four classes are `normal`, `crackle`, `wheeze`, and `mixed`.
+
+## Memory-conscious runtime behavior
+
+When the `RENDER` environment variable is set, the application limits Torch to one CPU thread. Numba JIT is disabled before the audio stack is imported. The inference path also releases temporary tensors after requests.
+
+The model is loaded once in a guarded global instance and exposed to requests only after the model-ready event is set.
+
+## Upload behavior
+
+Accepted extensions:
+
+```text
+.wav
+.mp3
+.flac
+.webm
+```
+
+Maximum request payload for the audio file: 10 MB.
+
+The service writes an internally generated filename under `/tmp/uploads` and removes the temporary file in a `finally` block.
+
+## Authentication
+
+Password hashes use PBKDF2-SHA256 via Passlib. JWTs are generated with Python-JOSE and use HS256 by default. Access tokens default to 24 hours.
+
+Protected routes use the bearer token to identify the current user. Admin routes additionally require the `admin` role.
+
+## Production configuration
+
+The deployment uses environment variables for `DATABASE_URL` and `SECRET_KEY`. The Render Blueprint generates the production secret and injects the PostgreSQL connection string.
+
+Production should not use the local development secret fallback or SQLite as a persistent data store.
+
+## Training scripts
+
+The repository includes optional training code in `backend/ml/`. These scripts should not be confused with the deployed inference process. The deployed API loads the tracked `backend/model/model.pth`.
+
