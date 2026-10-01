@@ -4,6 +4,7 @@ import os
 import uuid
 import time
 import traceback
+import gc
 
 from app.api.deps import get_current_user_id, get_db
 from app.models.record import Record
@@ -96,6 +97,8 @@ async def predict(
                 os.remove(file_path)
         except OSError:
             print("Failed to remove temporary upload")
+        # Release per-request CPU tensors/NumPy objects before the next upload.
+        gc.collect()
 
     return {
         "filename": file.filename,

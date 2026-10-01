@@ -7,6 +7,7 @@ from pathlib import Path
 
 import psutil
 import os
+import gc
 
 def log_memory(label):
     process = psutil.Process(os.getpid())
@@ -101,6 +102,10 @@ def load_model():
             # Load with partial matching
             model.load_state_dict(new_state_dict, strict=False)
             model.eval()
+            # Release the checkpoint copy after loading to reduce the peak and
+            # steady-state RSS on small Render instances.
+            del state_dict, new_state_dict
+            gc.collect()
             print(f"Model loaded successfully in {time.time()-t0:.2f}s (Adaptive Mode)")
             log_memory("After model load")
 
@@ -117,28 +122,38 @@ def predict_tensor(x):
     global model
 
     if not _model_ready.is_set():
-        # The route already checks this and returns 503, but just in case
         raise RuntimeError("Model is not ready for prediction")
 
     x = x.to(DEVICE)
+    out = None
+    probs = None
+    conf = None
+    pred = None
 
-    with torch.inference_mode():
-        t0 = time.time()
-        out = model(x)
-        probs = torch.softmax(out, dim=1)
-        print(f"Model inference took {time.time()-t0:.3f}s")
+    try:
+        with torch.inference_mode():
+            t0 = time.time()
+            out = model(x)
+            probs = torch.softmax(out, dim=1)
+            conf, pred = torch.max(probs, dim=1)
 
-    conf, pred = torch.max(probs, dim=1)
+            confidence = float(conf.item())
+            confidence = max(0.0, min(confidence, 1.0))
 
-    confidence = float(conf.item())
-    confidence = max(0.0, min(confidence, 1.0))  # safety clamp
+            classes = ["normal", "crackle", "wheeze", "mixed"]
+            all_probs = {
+                classes[i]: round(float(probs[0][i].item()), 4)
+                for i in range(len(classes))
+            }
 
-    classes = ["normal", "crackle", "wheeze", "mixed"]
-    
-    # Create a probability map for all classes
-    all_probs = {
-        classes[i]: round(float(probs[0][i].item()), 4)
-        for i in range(len(classes))
-    }
-
-    return classes[pred.item()], round(confidence, 3), all_probs
+            prediction = classes[pred.item()]
+            print(f"Model inference took {time.time()-t0:.3f}s")
+            return prediction, round(confidence, 3), all_probs
+    finally:
+        # Explicit cleanup keeps repeated predictions stable on small instances.
+        x = None
+        out = None
+        probs = None
+        conf = None
+        pred = None
+        gc.collect()

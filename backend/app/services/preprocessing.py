@@ -6,6 +6,8 @@ import tempfile
 import os
 import io
 import time
+import gc
+from functools import lru_cache
 
 import soundfile as sf  # pyrefly: ignore[missing-import]
 from scipy.signal import butter, lfilter  # pyrefly: ignore[missing-import]
@@ -31,20 +33,29 @@ def _power_to_db(S, ref=1.0, amin=1e-10, top_db=80.0):
     return log_spec
 
 
+@lru_cache(maxsize=2)
+def _get_mel_basis(sr, n_fft, n_mels):
+    # Cache the tiny, immutable filterbank instead of rebuilding it for every request.
+    return torch.from_numpy(
+        librosa.filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels)
+    ).float()
+
+
+@lru_cache(maxsize=2)
+def _get_hann_window(n_fft):
+    # Cache the analysis window to avoid a repeated allocation per request.
+    return torch.hann_window(n_fft).float()
+
+
 def _compute_melspectrogram(y, sr, n_fft=2048, hop_length=512, n_mels=128):
     """
-    Compute mel spectrogram using PyTorch and NumPy, bypassing librosa's
-    Numba JIT compilation which causes memory bloat (140MB+) and long
-    startup delays.
+    Compute the mel spectrogram using PyTorch STFT and a cached librosa
+    mel filterbank. This avoids librosa's Numba JIT path.
     """
-    import torch
-    # 1. Get mel filterbank from librosa (does not trigger Numba JIT)
-    mel_basis = librosa.filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels)
-    mel_basis = torch.from_numpy(mel_basis).float()
-    
-    # 2. Compute STFT using PyTorch
+    mel_basis = _get_mel_basis(sr, n_fft, n_mels)
+    window = _get_hann_window(n_fft)
     y_tensor = torch.from_numpy(y).float()
-    window = torch.hann_window(n_fft).float()
+
     stft = torch.stft(
         y_tensor,
         n_fft=n_fft,
@@ -52,17 +63,16 @@ def _compute_melspectrogram(y, sr, n_fft=2048, hop_length=512, n_mels=128):
         window=window,
         return_complex=True,
         center=True,
-        pad_mode='reflect'
+        pad_mode="reflect",
     )
-    
-    # 3. Power spectrogram
-    power_spec = torch.abs(stft)**2
-    
-    # 4. Mel spectrogram
+    power_spec = torch.abs(stft) ** 2
     mel_spec = torch.matmul(mel_basis, power_spec)
-    
-    return mel_spec.numpy()
 
+    # Copy the small result so all temporary STFT tensors can be released.
+    mel = mel_spec.numpy().copy()
+    del y_tensor, stft, power_spec, mel_spec
+    gc.collect()
+    return mel
 def highpass_filter(data, cutoff=100, fs=16000, order=5):
     nyq = 0.5 * fs
     normal_cutoff = cutoff / nyq
@@ -197,6 +207,7 @@ def preprocess_audio(file_path=None, file_bytes=None, file_ext=None):
 
     # dB scale
     mel_db = _power_to_db(mel, ref=np.max)
+    del mel
     mel_time = time.time() - t_mel_start
     print(f"  Mel spectrogram (PyTorch/NumPy): {mel_time:.3f}s")
 
@@ -215,5 +226,11 @@ def preprocess_audio(file_path=None, file_bytes=None, file_ext=None):
     mel_tensor = torch.tensor(mel_norm, dtype=torch.float32).unsqueeze(0).unsqueeze(0) # (1, 1, H, W)
     mel_resized = F.interpolate(mel_tensor, size=(128, 128), mode='bilinear', align_corners=False)
     
+    # Release large intermediate NumPy/Torch objects before returning.
+    result_tensor = mel_resized.squeeze(0).contiguous()
+    del mel_db, viz_scaled, viz_small, mel_norm, mel_tensor, mel_resized
+    del y
+    gc.collect()
+
     print(f"  Total preprocessing: {time.time()-t_start:.3f}s")
-    return mel_resized.squeeze(0), viz_data
+    return result_tensor, viz_data
