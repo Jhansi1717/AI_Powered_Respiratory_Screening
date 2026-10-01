@@ -1,178 +1,257 @@
-# 🫁 Respiratory AI — AI-Powered Respiratory Sound Screening
+# Respiratory AI — AI-Powered Respiratory Sound Screening
 
-> **AI-assisted screening tool for lung sounds.** An EfficientNet-B0 classifier analyses short respiratory audio recordings and flags patterns consistent with normal breathing, wheezes, crackles, or both. It is a **screening aid only** and does not provide a medical diagnosis.
+> A web application for AI-assisted respiratory sound screening. Users can upload an audio recording or capture one from a browser microphone, then receive a four-class model output with probabilities, a spectrogram visualization, screening-oriented interpretation, and per-user history. This software is a screening aid, not a medical diagnostic device.
 
----
+## Live Application
 
-## 📋 Overview
+- **Frontend:** https://respiratory-ai-frontend.onrender.com
+- **Backend API:** https://respiratory-ai-backend.onrender.com
+- **Interactive API docs:** https://respiratory-ai-backend.onrender.com/docs
+- **Health check:** https://respiratory-ai-backend.onrender.com/api/health
 
-Respiratory AI is a web application (React frontend + FastAPI backend) for uploading or recording respiratory sounds and receiving an AI screening result. The model is trained with a two-stage pipeline: optional SimCLR-style self-supervised pre-training of the encoder, followed by supervised fine-tuning on labelled respiratory recordings (ICBHI 2017 format).
+The deployed stack uses Render for the React static site, FastAPI service, and PostgreSQL database.
 
-### 🌟 Key Capabilities
-- **4-Class Screening**: Classifies audio as `normal`, `crackle`, `wheeze`, or `mixed`, with per-class probabilities.
-- **Bounded Preprocessing**: Only the first 5 seconds of audio are decoded (16 kHz mono), keeping memory use predictable on small instances.
-- **Signal Processing**: Butterworth high-pass filter and a log-scaled Mel-spectrogram visualisation of the analysed sound.
-- **Rule-Based Interpretation**: Maps model output to a severity level and plain-language guidance in the UI.
-- **Localization**: English, Spanish, Hindi, and Telugu.
-- **Downloadable Report**: Client-side PDF screening report generated in the browser (jsPDF).
-- **History**: Per-user screening history persisted in PostgreSQL.
+## What the application actually does
 
----
+1. A signed-in user uploads audio or records audio in the browser.
+2. The backend accepts `.wav`, `.mp3`, `.flac`, and `.webm` files up to 10 MB.
+3. Processing is bounded to the first 5 seconds of audio and converted to mono at 16 kHz.
+4. A 100 Hz, fifth-order Butterworth high-pass filter is applied.
+5. A 128-band Mel spectrogram is generated with PyTorch STFT and a librosa Mel filterbank, converted to dB, normalized, and resized to 128×128.
+6. EfficientNet-B0 produces one of four model classes: `normal`, `crackle`, `wheeze`, or `mixed`.
+7. The result includes a confidence value and a probability for each class.
+8. The result and confidence are stored in PostgreSQL for the authenticated user.
+9. The frontend displays the result, spectrogram, confidence information, analytics, and history.
 
-## ✨ Features & Architecture
+## Current technical stack
 
-| Feature | Technical Implementation | Purpose |
-|---------|-------------------------|---------|
-| **4-Class Classifier** | EfficientNet-B0 (timm) + linear head, CrossEntropy | Normal, Crackle, Wheeze, or Mixed. |
-| **Mel-Spectrograms** | PyTorch STFT + librosa Mel filterbank (Numba-free), dB scale | Model input and on-screen visualisation. |
-| **Insight Engine** | Severity mapping & urgency logic (frontend) | Translates model output into readable screening guidance. |
-| **Live Oscilloscope** | Web Audio API AnalyserNode | Real-time feedback during audio recording. |
-| **Persistence** | SQLAlchemy + PostgreSQL (SQLite fallback for local dev) | Users and screening history. |
-| **Auth** | JWT (python-jose) + PBKDF2-SHA256 password hashing (passlib) | Per-user data isolation and admin role. |
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, React Router, Axios, Framer Motion, Lucide React, Tailwind CSS, jsPDF |
+| Backend | FastAPI, Uvicorn, SQLAlchemy, Pydantic |
+| ML | PyTorch, timm, EfficientNet-B0 |
+| Audio | SoundFile, librosa, SoXR, SciPy |
+| Database | PostgreSQL in deployment, SQLite fallback for local development |
+| Authentication | JWT (python-jose), PBKDF2-SHA256 password hashing (Passlib) |
+| Deployment | Render |
+| Runtime hardening | Bounded 5-second preprocessing, single Torch thread on Render, Numba JIT disabled, request-level cleanup |
 
-### 🔊 Inference Pipeline
-1. Upload validated (`.wav`, `.mp3`, `.flac`, `.webm`, max 10 MB).
-2. First 5 seconds decoded and resampled to 16 kHz mono (`soundfile` fast path for WAV/FLAC, `librosa` otherwise), padded if shorter.
-3. 100 Hz Butterworth high-pass filter.
-4. 128-band Mel-spectrogram → dB → normalised → resized to 128×128.
-5. EfficientNet-B0 inference → softmax over 4 classes.
+## Inference pipeline
 
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-- **Python 3.10+**
-- **Node.js 18+**
-- **FFmpeg** (Optional, for advanced audio format conversion)
-
-### 1. Clone & Initialize
-```bash
-git clone <repo-url>
-cd respiratory-ai
+```text
+Audio upload / browser recording
+        ↓
+Extension + 10 MB validation
+        ↓
+First 5 seconds decoded
+        ↓
+Mono conversion + 16 kHz target
+        ↓
+SoXR resampling when needed
+        ↓
+100 Hz Butterworth high-pass filter
+        ↓
+128-band Mel spectrogram
+        ↓
+dB conversion + Z-score normalization
+        ↓
+Resize to 128 × 128
+        ↓
+EfficientNet-B0 + Linear(1280, 4)
+        ↓
+Softmax probabilities
+        ↓
+Prediction + confidence + spectrogram data
+        ↓
+PostgreSQL history record
 ```
 
-### 2. Backend Setup (FastAPI)
+## Audio handling
+
+Current production preprocessing uses:
+
+- **WAV/FLAC:** SoundFile fast path, with SoXR resampling when the source rate is not 16 kHz.
+- **MP3/WebM:** Librosa decoding for the current implementation.
+- **5-second bound:** Only the first 5 seconds are processed.
+- **Temporary upload path:** Backend writes the request to a UUID-generated file under `/tmp/uploads` and removes it after processing.
+
+The repository explicitly includes the `soxr` dependency because it is used by the production resampling paths.
+
+## Model
+
+The deployed model is an **EfficientNet-B0** backbone with a four-class linear classifier.
+
+Classes:
+
+```text
+0 → normal
+1 → crackle
+2 → wheeze
+3 → mixed
+```
+
+The inference service loads:
+
+```text
+backend/model/model.pth
+```
+
+The current inference code creates the EfficientNet-B0 architecture with one input channel, loads the saved state dictionary, switches the model to evaluation mode, and performs inference with `torch.inference_mode()`.
+
+### Training code in the repository
+
+The repository contains optional training scripts:
+
+- `backend/ml/train_ssl.py` — SimCLR-style self-supervised pre-training.
+- `backend/ml/train_supervised.py` — supervised fine-tuning of the four-class model.
+
+The current production inference service does **not** load `ssl_encoder.pth`; it loads `model.pth`.
+
+## Authentication and authorization
+
+- `POST /api/signup` creates an account.
+- `POST /api/login` returns a JWT bearer token.
+- Protected analysis and history requests require a bearer token.
+- User history is filtered by the authenticated `user_id`.
+- Admin-only routes use role-based authorization.
+- Access tokens default to a 24-hour lifetime.
+- Production `SECRET_KEY` is supplied through the Render environment.
+
+## API
+
+| Method | Endpoint | Authentication | Purpose |
+|---|---|---|---|
+| GET | `/api/health` | No | Check DB, storage, and model readiness |
+| POST | `/api/signup` | No | Create account |
+| POST | `/api/login` | No | Obtain JWT |
+| POST | `/api/token` | No | OAuth2-compatible token endpoint for API docs |
+| POST | `/api/predict` | Bearer JWT | Analyze audio |
+| GET | `/api/history` | Bearer JWT | Get current user's screening history |
+| GET | `/api/admin/users` | Admin JWT | List users |
+
+Interactive Swagger documentation is available at the live `/docs` URL above.
+
+## Local development
+
+### Requirements
+
+- Python 3.10+
+- Node.js
+- npm
+- Python build tools required by the installed packages
+
+### Backend
+
 ```bash
 cd backend
 python -m venv venv
-# Windows: venv\Scripts\activate | Unix: source venv/bin/activate
+
+# Windows
+venv\Scripts\activate
+
+# macOS/Linux
+source venv/bin/activate
+
 pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
 ```
 
-### 3. Frontend Setup (React)
+### Frontend
+
 ```bash
 cd frontend
 npm install
 npm start
 ```
 
-### 4. Running the Project
-- **Backend**: `uvicorn app.main:app --reload --port 8000`
-- **Frontend**: `http://localhost:3000`
+The local frontend runs on `http://localhost:3000` and the local backend on `http://localhost:8000`.
 
----
+## Render deployment
 
-## ⚙️ Deployment Notes
+The repository contains a `render.yaml` Blueprint defining:
 
-- Deployed on Render (`render.yaml`): `respiratory-ai-backend` (FastAPI), `respiratory-ai-frontend` (static React build), and the `respiratory-ai-db` PostgreSQL database.
-- `DATABASE_URL` is provided by Render; without it the backend falls back to a local SQLite file for development.
-- `SECRET_KEY` is **required** on Render (the backend refuses to start without it). A development-only fallback is used locally.
-- Uploaded audio is written to a temporary file under `/tmp/uploads` for processing and deleted after each request; only the original filename and result are stored.
-- Torch runs single-threaded on Render and Numba JIT is disabled to stay within the free-tier memory limit.
+- `respiratory-ai-backend` — Python/FastAPI web service
+- `respiratory-ai-frontend` — React static site
+- `respiratory-ai-db` — PostgreSQL database
 
----
+The frontend static site includes a catch-all rewrite to `/index.html` so React Router direct navigation such as `/dashboard` works after refresh.
 
-## 🔌 API Documentation
+### Production environment
 
-| Method | Endpoint | Auth | Description |
-|--------|---------|------|-------------|
-| `POST` | `/api/signup` | ❌ | Create new user account |
-| `POST` | `/api/login` | ❌ | Authenticate and receive JWT token |
-| `POST` | `/api/predict` | ✅ | Upload audio file for AI analysis |
-| `GET` | `/api/history` | ✅ | Retrieve user's analysis history |
-| `GET` | `/api/admin/users` | ✅ Admin | List all registered users |
+The backend expects:
 
----
+- `DATABASE_URL`
+- `SECRET_KEY`
 
-## 📊 Sample Outputs
+The Render Blueprint generates `SECRET_KEY` and connects the backend to the Render PostgreSQL database.
 
-Example predictions on ICBHI samples and varied audio formats. These are illustrative outputs, **not a clinical validation study**:
+## Security and data handling
 
-| Audio Type | Prediction | Mapping | Severity | Confidence |
-|-----------|-----------|-----------------|----------|------------|
-| Crackle WAV | `crackle` | Fluid or Mucus Presence | Moderate | 28.0% |
-| Normal WAV | `normal` | Normal Respiratory Pattern | Low | 26.4% |
-| Mixed WAV | `mixed` | Complex Respiratory Condition | High | 30.2% |
-| Wheeze MP3 | `wheeze` | Mild Airway Obstruction | Moderate | ~28% |
+Current code includes:
 
----
+- JWT authentication for protected routes
+- PBKDF2-SHA256 password hashing
+- Role-based access control for admin endpoints
+- Extension allow-list
+- 10 MB request size limit
+- Server-generated temporary filenames
+- Temporary upload deletion after each request
+- Restricted CORS origins
+- Generic error messages for unexpected server errors
+- No password values written to logs
 
-## 🤖 Deep Learning Pipeline
+This project has **not** been independently audited for HIPAA, medical-device compliance, or other regulatory requirements. Do not use it to store real patient data without an appropriate compliance and security review.
 
-### Stage 1: Self-Supervised Pre-training (optional)
-`backend/ml/train_ssl.py` — SimCLR-style contrastive learning on unlabelled audio.
-- **Backbone**: EfficientNet-B0
-- **Pretext Task**: NT-Xent contrastive loss with noise injection and frequency masking augmentations
-- **Output**: `model/ssl_encoder.pth`
+## Performance and deployment limitations
 
-### Stage 2: Supervised Fine-tuning
-`backend/ml/train_supervised.py` — initialises the backbone from `ssl_encoder.pth` when present, then trains the 4-class head.
-- **Classes**: Normal, Crackle, Wheeze, Mixed
-- **Optimizer**: Adam (lr=1e-5)
-- **Output**: `model/model.pth` (the only weights loaded at inference time)
+The backend has been optimized to reduce memory pressure during repeated predictions:
 
----
+- Torch uses one CPU thread on Render.
+- Numba JIT is disabled.
+- Audio processing is bounded to five seconds.
+- Mel-spectrogram filterbanks and the Hann window are cached.
+- Per-request tensors and temporary objects are explicitly released.
+- Temporary audio files are deleted after each request.
 
-## 📁 Project Structure
+These changes reduce avoidable memory retention, but they do **not** guarantee a fixed response time on shared/free hosting. The current Render deployment should be treated as a demonstration/portfolio deployment unless the hosting tier and operational requirements have been reviewed separately.
+
+## Model evaluation status
+
+Do **not** interpret the sample predictions shown by the app as clinical accuracy metrics.
+
+The repository contains training/demo scripts and sample outputs, but it does not currently publish a statistically valid independent test-set evaluation, calibration study, or clinical validation study. Claims about accuracy should therefore not be inferred from individual live predictions.
+
+For academic evaluation, report held-out test results with the dataset split, number of recordings, class distribution, metrics, and evaluation protocol.
+
+## Project structure
 
 ```text
-respiratory-ai/
+AI_Powered_Respiratory_Screening/
 ├── backend/
 │   ├── app/
-│   │   ├── api/          # Auth, Predict, History endpoints
-│   │   ├── services/     # Model inference & Audio preprocessing
-│   │   └── models/       # Database entities
-│   ├── ml/               # SSL & Supervised training scripts
-│   └── model/            # Pre-trained weights (.pth)
+│   │   ├── api/routes/       # auth, prediction, history, admin
+│   │   ├── core/             # DB, security, configuration
+│   │   ├── models/           # SQLAlchemy models
+│   │   ├── schemas/          # Pydantic schemas
+│   │   └── services/         # preprocessing and inference
+│   ├── ml/                   # optional training scripts
+│   ├── model/                # model weights
+│   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── pages/        # Dashboard, Login, Signup
-│   │   └── services/     # API integration layer
-└── docs/                 # Documentation & Walkthroughs
+│   │   ├── components/
+│   │   ├── pages/
+│   │   ├── services/
+│   │   └── utils/
+│   └── package.json
+├── docs/
+└── render.yaml
 ```
 
----
-
-## 🛡️ Security & Privacy
-- **JWT Protection**: Screening history is isolated per user; the frontend discards expired or malformed tokens.
-- **Password Hashing**: PBKDF2-SHA256 via passlib.
-- **Upload Hardening**: Extension allow-list, 10 MB size limit, server-generated temporary filenames, and generic error messages.
-- **CORS Policy**: Restricted to the local dev and production frontend origins.
-- **Logging**: Passwords, password-check results, and user records are not logged.
-
-This project has not been audited for HIPAA or any other regulatory compliance and should not be used to store real patient data.
-
----
-
-## 🚧 Future Roadmap
-- [ ] **Full ICBHI Training**: Train on the complete dataset and publish evaluation metrics.
-- [ ] **Object Storage**: AWS S3 for audio storage.
-- [ ] **EHR Integration**: HL7/FHIR standards for electronic health record connectivity
-- [ ] **Model Explainability**: Grad-CAM visualization for spectrogram heatmaps
-- [ ] **Batch Processing**: Multi-sample upload and analysis
-- [x] **PostgreSQL Persistence**
-- [x] **Multi-Format Audio**: Support for WAV, MP3, FLAC, WebM
-- [x] **Multi-Language**: English, Spanish, Hindi, Telugu support
-
----
-
-## ⚕️ Clinical Safety Disclaimer
-
-> **IMPORTANT**: This system is intended for **screening support only**. It is not a medical device, has not been clinically validated, and does not provide a diagnosis. Results must be reviewed by a licensed medical professional and are not a substitute for clinical judgment.
-
----
-
-## 👤 Author
+## Author
 
 **Bhukya Jhansi**
+
+## Clinical safety notice
+
+> This software is intended for research, demonstration, and screening-support workflows. It is not a substitute for professional medical evaluation and does not provide a medical diagnosis. Do not make clinical decisions solely from its output.
