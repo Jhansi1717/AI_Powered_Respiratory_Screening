@@ -1,194 +1,100 @@
-# Self-Supervised Learning (SSL) Pipeline — Technical Deep Dive
+# Self-Supervised Learning Pipeline
 
-## Motivation
+## Status
 
-Labeled respiratory audio data is scarce and expensive to annotate (requires clinical expertise). Self-Supervised Learning addresses this by:
+The repository contains an **optional** SimCLR-style self-supervised learning stage. It is part of the training codebase, not a required step for running the deployed API.
 
-1. **Pre-training** the model on large amounts of **unlabeled** audio data to learn general acoustic representations.
-2. **Fine-tuning** on a smaller set of **labeled** data for the specific classification task.
+The deployed inference service loads `backend/model/model.pth`.
 
-This approach consistently outperforms training from scratch, especially when labeled data is limited.
+## Stage 1 — Self-supervised pre-training
 
----
+The SSL model is implemented by `SSLAudioEncoder` in `backend/app/services/model.py` and trained by `backend/ml/train_ssl.py`.
 
-## Architecture Overview
+The encoder uses:
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    SSLAudioEncoder                           │
-│                                                              │
-│  ┌─────────────────────────────────────────────┐             │
-│  │  EfficientNet-B0 Backbone                   │             │
-│  │  • in_chans=1 (grayscale spectrogram)       │             │
-│  │  • num_classes=0 (no classifier head)       │             │
-│  │  • global_pool="avg" (1280-dim output)      │             │
-│  │  • Initialized from ImageNet weights        │             │
-│  └─────────────────────┬───────────────────────┘             │
-│                        │ 1280-dim features                   │
-│  ┌─────────────────────▼───────────────────────┐             │
-│  │  Projection Head                            │             │
-│  │  Linear(1280, 512) → ReLU → Linear(512, 128)│             │
-│  └─────────────────────┬───────────────────────┘             │
-│                        │ 128-dim projected features          │
-└────────────────────────┼─────────────────────────────────────┘
-                         ↓
-                  NT-Xent Loss
-```
+- EfficientNet-B0
+- one input channel for spectrograms
+- a projection head:
+  - Linear(1280, 512)
+  - ReLU
+  - Linear(512, 128)
 
----
+The intended training objective is an NT-Xent contrastive loss.
 
-## Training Process (SimCLR Framework)
+The training code creates two augmented views of an input spectrogram and optimizes the representation so corresponding views are closer than unrelated examples.
 
-### Step 1: Data Loading
-```python
-# CoswaraDataset loads all .wav and .mp3 files from the data directory
-# Files smaller than 4 KB are automatically filtered out (corrupt/test stubs)
-wav_files = glob.glob(os.path.join(data_dir, "**/*.wav"), recursive=True)
-mp3_files = glob.glob(os.path.join(data_dir, "**/*.mp3"), recursive=True)
-files = [f for f in wav_files + mp3_files if os.path.getsize(f) >= 4096]
-```
+## Augmentations
 
-### Step 2: Preprocessing
-Each audio file goes through the preprocessing pipeline:
-1. **Load**: SoundFile (WAV/FLAC) → Librosa fallback (MP3/WebM)
-2. **Mono**: Convert stereo to mono
-3. **Resample**: Normalize to 16 kHz
-4. **Filter**: Butterworth high-pass (100 Hz cutoff, 5th order)
-5. **Length**: Pad/truncate to 5 seconds (80,000 samples)
-6. **Mel-Spectrogram**: 128 Mel bands → dB scale → Z-score normalization
-7. **Resize**: Bilinear interpolation to 128×128 tensor
+The repository's SSL transform includes:
 
-### Step 3: Augmentation (Dual Views)
-The `SSLTransform` module generates two different augmented views of each spectrogram:
+- Gaussian noise
+- time shifting
+- frequency masking
 
-| Augmentation | View 1 | View 2 | Purpose |
-|-------------|--------|--------|---------|
-| Gaussian Noise | σ = 0.01 | σ = 0.02 | Simulate recording variability |
-| Time Shift | ±20 frames | — | Temporal invariance |
-| Frequency Mask | — | 10-band mask | Frequency robustness |
+The exact augmentation implementation should be treated as the source of truth for experiments.
 
-```python
-class SSLTransform(nn.Module):
-    def forward(self, x):
-        v1 = add_gaussian_noise(time_shift(x.clone()))
-        v2 = freq_mask(add_gaussian_noise(x.clone(), level=0.02))
-        return v1, v2
+## Stage 2 — Supervised fine-tuning
+
+`backend/ml/train_supervised.py` trains the four-class diagnostic model.
+
+Current architecture:
+
+```text
+Input spectrogram
+      ↓
+EfficientNet-B0
+      ↓
+Global average pooling
+      ↓
+Linear(1280, 4)
+      ↓
+normal / crackle / wheeze / mixed
 ```
 
-### Step 4: Contrastive Loss (NT-Xent)
+When an SSL checkpoint is supplied to the training function, the backbone can be initialized from it with non-strict loading so classifier keys can differ.
 
-The NT-Xent (Normalized Temperature-scaled Cross-Entropy) loss encourages the model to:
-- **Pull together** representations of the same audio clip (positive pairs)
-- **Push apart** representations of different clips (negative pairs)
+The resulting diagnostic model is saved as:
 
-```
-NT-Xent Loss = -log( exp(sim(z_i, z_j) / τ) / Σ_k exp(sim(z_i, z_k) / τ) )
-
-where:
-  z_i, z_j = projected features of view 1 and view 2 of the same clip
-  τ = 0.1 (temperature parameter)
-  sim(a, b) = cosine similarity = (a · b) / (|a| × |b|)
+```text
+backend/model/model.pth
 ```
 
-### Step 5: Saving
-Only the **backbone** weights are saved (not the projection head):
-```python
-torch.save(encoder.backbone.state_dict(), "model/ssl_encoder.pth")
+## Important distinction: training vs inference
+
+The live FastAPI service does not run training when a user uploads audio.
+
+Runtime flow:
+
+```text
+Existing model.pth
+      ↓
+load once at startup
+      ↓
+wait for model_ready
+      ↓
+predict requests
 ```
 
-This is because the projection head is specific to the contrastive task and is discarded during fine-tuning.
+## Dataset claims
 
----
+The training scripts reference ICBHI-style supervised data and an optional unlabeled SSL data directory. The current repository does not contain a complete, independently evaluated training experiment suitable for a published accuracy claim.
 
-## Supervised Fine-tuning (Stage 2)
+Do not convert example/demo training outputs into a claim of clinical or generalization performance.
 
-### Model Architecture (Diagnostic Model)
-```
-┌──────────────────────────────────────────────────────┐
-│                     Model                            │
-│                                                      │
-│  ┌────────────────────────────────────────────┐      │
-│  │  EfficientNet-B0 Backbone                  │      │
-│  │  • Initialized from ssl_encoder.pth        │      │
-│  │  • strict=False (skip missing classifier)  │      │
-│  │  • forward_features → [B, 1280, H, W]     │      │
-│  └────────────────────┬───────────────────────┘      │
-│                       │                              │
-│  Global Average Pooling → [B, 1280]                  │
-│                       │                              │
-│  ┌────────────────────▼───────────────────────┐      │
-│  │  Classifier Head                           │      │
-│  │  Linear(1280, 4)                           │      │
-│  │  Classes: [normal, crackle, wheeze, mixed] │      │
-│  └────────────────────────────────────────────┘      │
-└──────────────────────────────────────────────────────┘
-```
+## Reproducible evaluation
 
-### Training Configuration
-| Parameter | Value | Rationale |
-|-----------|-------|-----------|
-| Optimizer | Adam | Adaptive learning rates |
-| Learning Rate | 1e-5 | Lower LR for fine-tuning pre-trained backbone |
-| Loss Function | CrossEntropyLoss | Standard multi-class classification |
-| Batch Size | 8 | Smaller batches for stability with few samples |
-| Epochs | 5 (demo) / 15 (full) | More epochs for full dataset |
-| Weight Loading | `strict=False` | Skip missing classifier keys from SSL checkpoint |
+For a defensible model report, document:
 
-### Auto-Labeling Strategy (Demo Mode)
-When ICBHI data is unavailable, files are auto-labeled based on filename patterns:
-```python
-if "wheeze" in name.lower() or "172" in name:   label = 2  # Wheeze
-elif "crackle" in name.lower() or "177" in name: label = 1  # Crackle
-elif "mixed" in name.lower():                     label = 3  # Mixed
-else:                                              label = 0  # Normal
-```
+- exact dataset version
+- patient-level or recording-level split policy
+- training/validation/test counts
+- class balance
+- random seeds
+- preprocessing version
+- checkpoint SHA/version
+- accuracy, precision, recall, F1, sensitivity, specificity where appropriate
+- confusion matrix
+- external/held-out test results
+- calibration analysis
 
----
-
-## Training Results
-
-### SSL Pre-training (Demo: 33 files, 5 epochs)
-```
-Epoch 1/5 | Loss: 1.4855
-Epoch 2/5 | Loss: 1.3369
-Epoch 3/5 | Loss: 0.9096
-Epoch 4/5 | Loss: 0.7505
-Epoch 5/5 | Loss: 0.8043
-```
-
-### Supervised Fine-tuning (Demo: 33 files, 5 epochs)
-```
-Epoch 1/5 | Loss: 1.3868 | Acc: 27.27%
-Epoch 2/5 | Loss: 1.3297 | Acc: 51.52%
-Epoch 3/5 | Loss: 1.3005 | Acc: 42.42%
-Epoch 4/5 | Loss: 1.2591 | Acc: 66.67%
-Epoch 5/5 | Loss: 1.2164 | Acc: 60.61%
-```
-
-**Key Observations**:
-- SSL loss decreased from 1.49 → 0.75 (**49.7% reduction**), showing effective representation learning on unlabeled data.
-- Supervised accuracy improved from 27% → **67% (Peak)**, demonstrating successful transfer from SSL weights.
-- **Robust Audio Handling**: Zero loading errors across WAV, MP3, and WebM (browser recordings) after implementing the 3-tier conversion pipeline.
-- **Clinical Alignment**: 4-class classification aligns precisely with ICBHI benchmarks, providing high-resolution differentiation between crackles and wheezes.
-
----
-
-## Scaling to Production
-
-To achieve production-grade accuracy:
-
-1. **Download ICBHI 2017 Dataset**: ~920 respiratory recordings with clinical labels
-2. **Download Coswara Dataset**: ~1,500+ unlabeled respiratory audio samples
-3. **Train SSL for 50-100 epochs** on Coswara data
-4. **Fine-tune for 30-50 epochs** on ICBHI data with data augmentation
-5. **Expected accuracy**: 75-85% on ICBHI 4-class classification
-
-```bash
-# Place datasets
-backend/data/coswara/   → unlabeled .wav files
-backend/data/icbhi/     → labeled ICBHI .wav files
-
-# Full training
-python ml/train_ssl.py      # ~30 min on GPU
-python ml/train_supervised.py  # ~15 min on GPU
-```
+This repository currently describes the training pipeline, but it does not by itself establish clinical validity.
