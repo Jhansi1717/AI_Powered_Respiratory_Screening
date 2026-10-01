@@ -290,10 +290,20 @@ export default function Dashboard({ isDarkMode, toggleTheme, language, setLangua
   };
 
   useEffect(() => {
-    loadHistory();
-    // Pre-wake the Render backend from hibernation so it's ready when user clicks Analyze
-    wakeBackend();
-    
+    let cancelled = false;
+
+    const initializeDashboard = async () => {
+      // Wake the backend and wait for the model to be ready before loading
+      // protected history data. This removes the startup race on Render.
+      await wakeBackend();
+
+      if (!cancelled) {
+        await loadHistory();
+      }
+    };
+
+    initializeDashboard();
+
     // Check for admin role
     const token = localStorage.getItem("token");
     if (token) {
@@ -303,6 +313,10 @@ export default function Dashboard({ isDarkMode, toggleTheme, language, setLangua
         loadUsers();
       }
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const loadUsers = async () => {
