@@ -769,7 +769,7 @@ export default function Dashboard({ isDarkMode, toggleTheme, language, setLangua
     // Backend stores timestamps as UTC using datetime.utcnow(), but older
     // API responses can omit the timezone marker. Treat timezone-less API
     // timestamps as UTC so the browser converts them to the user's locale.
-    const hasTimezone = /(?:Z|[+-]\\d{2}:?\\d{2})$/i.test(raw);
+    const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw);
     const normalized = hasTimezone ? raw : `${raw}Z`;
     const date = new Date(normalized);
 
