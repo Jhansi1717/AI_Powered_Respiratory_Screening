@@ -122,10 +122,13 @@ def predict_tensor(x):
     global model
 
     if not _model_ready.is_set():
-        # The route already checks this and returns 503, but just in case
         raise RuntimeError("Model is not ready for prediction")
 
     x = x.to(DEVICE)
+    out = None
+    probs = None
+    conf = None
+    pred = None
 
     try:
         with torch.inference_mode():
@@ -134,12 +137,10 @@ def predict_tensor(x):
             probs = torch.softmax(out, dim=1)
             conf, pred = torch.max(probs, dim=1)
 
-            # Convert tensors to plain Python values before releasing them.
             confidence = float(conf.item())
             confidence = max(0.0, min(confidence, 1.0))
 
             classes = ["normal", "crackle", "wheeze", "mixed"]
-
             all_probs = {
                 classes[i]: round(float(probs[0][i].item()), 4)
                 for i in range(len(classes))
@@ -149,9 +150,10 @@ def predict_tensor(x):
             print(f"Model inference took {time.time()-t0:.3f}s")
             return prediction, round(confidence, 3), all_probs
     finally:
-        # Explicitly release the per-request tensor graph/output objects.
-        del x
-        for name in ("out", "probs", "conf", "pred"):
-            if name in locals():
-                del locals()[name]
+        # Explicit cleanup keeps repeated predictions stable on small instances.
+        x = None
+        out = None
+        probs = None
+        conf = None
+        pred = None
         gc.collect()
