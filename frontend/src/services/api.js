@@ -9,12 +9,30 @@ const API_BASE = window.location.hostname === "localhost"
 // Render spins down free instances after 15 min of inactivity.
 // This sends a lightweight health ping to wake it before real requests.
 export const wakeBackend = async () => {
-  try {
-    await axios.get(`${API_BASE}/api/health`, { timeout: 90000 });
-    return true;
-  } catch {
-    return false;
+  // Wait until the backend is not only reachable, but also has the model loaded.
+  // This prevents protected requests from racing the Render cold start/model warmup.
+  const maxAttempts = 30;
+  const delayMs = 2000;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      const response = await axios.get(`${API_BASE}/api/health`, { timeout: 10000 });
+      const healthy = response.data?.status === "healthy";
+      const modelReady = response.data?.model_ready === true;
+
+      if (healthy && modelReady) {
+        return true;
+      }
+    } catch {
+      // Backend may still be waking. Retry without surfacing a false network error.
+    }
+
+    if (attempt < maxAttempts - 1) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
   }
+
+  return false;
 };
 
 const buildApiError = (error, fallbackDetail) => {
