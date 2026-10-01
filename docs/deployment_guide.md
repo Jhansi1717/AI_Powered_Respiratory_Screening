@@ -1,87 +1,120 @@
-# 🚀 Respiratory AI — Perfect Deployment Guide
+# Respiratory AI — Deployment Guide
 
-This guide provides step-by-step instructions for deploying the **Respiratory AI** platform to a professional cloud environment using **Render.com**.
+## Current deployment
 
----
+The repository is deployed with a Render Blueprint defined in `render.yaml`.
 
-## 🏗️ Architecture Overview
+Services:
 
-The platform is deployed as a **Dual-Service Stack**:
-1.  **Backend**: FastAPI running on Python 3.10+ (Web Service).
-2.  **Frontend**: React 18 SPA (Static Site).
+| Resource | Render name | Purpose |
+|---|---|---|
+| Backend | `respiratory-ai-backend` | FastAPI API + inference |
+| Frontend | `respiratory-ai-frontend` | React static site |
+| Database | `respiratory-ai-db` | PostgreSQL |
 
----
+## Live URLs
 
-## 🛠️ Automated Deployment (Recommended)
+- Frontend: https://respiratory-ai-frontend.onrender.com
+- Backend: https://respiratory-ai-backend.onrender.com
+- Swagger: https://respiratory-ai-backend.onrender.com/docs
+- Health: https://respiratory-ai-backend.onrender.com/api/health
 
-The repository includes a `render.yaml` file that automates the entire provisioning process.
+## Blueprint configuration
 
-1.  Log in to [Render.com](https://render.com).
-2.  Click **New +** → **Blueprint**.
-3.  Connect your GitHub repository: `Jhansi1717/AI_Powered_Respiratory_Screening`.
-4.  Render will automatically detect the services:
-    *   `respiratory-ai-backend` (FastAPI)
-    *   `respiratory-ai-frontend` (React)
-5.  Click **Apply**.
+### Backend
 
----
+- Runtime: Python
+- Root directory: `backend`
+- Build: `pip install -r requirements.txt`
+- Start: `python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- Health check: `/api/health`
 
-## ⚙️ Manual Configuration
+### Frontend
 
-If you prefer to set up services manually:
+- Runtime: Static site
+- Root directory: `frontend`
+- Build: `npm install && npm run build`
+- Publish directory: `build`
 
-### 1. Backend (FastAPI)
--   **Service Type**: Web Service
--   **Runtime**: Python 3
--   **Root Directory**: `backend`
--   **Build Command**: `pip install -r requirements.txt`
--   **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
--   **Environment Variables**:
-    *   `PORT`: `10000` (or leave empty)
-    *   `DATABASE_URL`: `sqlite:///./test.db` (For production, add a **Render Disk** or use **PostgreSQL**).
+The static site uses a catch-all rewrite:
 
-### 2. Frontend (React)
--   **Service Type**: Static Site
--   **Build Command**: `npm install && npm run build`
--   **Publish Directory**: `build`
--   **Root Directory**: `frontend`
--   **Environment Variables**:
-    *   `REACT_APP_API_URL`: Your backend service URL (e.g., `https://respiratory-ai-backend.onrender.com`).
+```yaml
+routes:
+  - type: rewrite
+    source: /*
+    destination: /index.html
+```
 
----
+This allows React Router paths such as `/dashboard` to load on direct navigation or browser refresh.
 
-## 🔒 Production Hardening
+### Database
 
-For a truly "Perfect" deployment, follow these final steps:
+The Blueprint provisions a Render PostgreSQL database named `respiratory-ai-db` and injects its connection string into the backend through `DATABASE_URL`.
 
-### 1. Persistence
-SQLite files are ephemeral on Render. For production data retention:
--   **Option A**: Add a **Render Disk** mounted at `/backend/app/` to keep `test.db` persistent.
--   **Option B**: Update the `DATABASE_URL` to a **Render PostgreSQL** instance.
+## Production environment variables
 
-### 2. Security
--   Update `backend/app/main.py` to restrict `allow_origins` to your frontend domain only:
-    ```python
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["https://your-frontend-domain.com"],
-        # ...
-    )
-    ```
+Backend:
 
-### 3. Model Storage
-Ensure `backend/model/model.pth` and `backend/model/ssl_encoder.pth` are included in your repository. If the files are too large (>100MB), use **Git LFS** or upload them to **AWS S3**.
+- `DATABASE_URL`
+- `SECRET_KEY`
+- `PYTHON_VERSION`
 
----
+The Blueprint generates `SECRET_KEY`. Do not commit a production secret to Git.
 
-## ✅ Deployment Checklist
-- [ ] Backend is accessible at `/docs` (Swagger UI).
-- [ ] Frontend successfully communicates with the Backend (Check Browser Console).
-- [ ] Multi-language support loads correctly.
-- [ ] PDF generation is functional in the cloud environment.
-- [ ] Audio recording works (Requires HTTPS, which Render provides by default).
+Frontend:
 
----
+- `REACT_APP_API_URL` is present in the Blueprint. The application currently chooses its production API host in `frontend/src/services/api.js`.
 
-## 👤 Support
-For technical assistance during deployment, refer to the [System Architecture](./architecture.md) documentation.
+## Health verification
+
+After a backend deployment:
+
+```bash
+curl -i https://respiratory-ai-backend.onrender.com/api/health
+```
+
+Expected shape:
+
+```json
+{
+  "status": "healthy",
+  "database": "connected",
+  "storage": "writable",
+  "model_ready": true
+}
+```
+
+## Production smoke test
+
+1. Open the frontend.
+2. Create or use a test account.
+3. Log in.
+4. Upload a valid `.wav` file.
+5. Run analysis.
+6. Confirm the result appears.
+7. Run several consecutive predictions to check memory stability.
+8. Open history and confirm the prediction is persisted.
+9. Refresh `/dashboard` and confirm the React Router rewrite works.
+10. Check Render logs for exceptions or process restarts.
+
+## Known operational limits
+
+The inference service has been optimized for bounded memory use, but shared/free hosting does not provide deterministic latency. Treat the current deployment as a portfolio/demo deployment until resource sizing, monitoring, backups, and security requirements have been formally reviewed.
+
+## Troubleshooting
+
+### Dashboard refresh returns 404
+
+Check the frontend static-site rewrite to `/index.html`.
+
+### Health is healthy but prediction returns 401
+
+The JWT may be expired or invalid. Log in again and obtain a new token.
+
+### Prediction returns 500
+
+Check the backend Render logs at the same timestamp and inspect preprocessing/model exceptions.
+
+### Prediction becomes slow or the service restarts
+
+Check Render memory/CPU metrics and process logs before changing model or preprocessing code.
