@@ -762,12 +762,30 @@ export default function Dashboard({ isDarkMode, toggleTheme, language, setLangua
     return "bg-rose-500";
   };
 
+  const parseTimestamp = (timestamp) => {
+    if (!timestamp) return null;
+
+    const raw = String(timestamp).trim();
+    // Backend stores timestamps as UTC using datetime.utcnow(), but older
+    // API responses can omit the timezone marker. Treat timezone-less API
+    // timestamps as UTC so the browser converts them to the user's locale.
+    const hasTimezone = /(?:Z|[+-]\\d{2}:?\\d{2})$/i.test(raw);
+    const normalized = hasTimezone ? raw : `${raw}Z`;
+    const date = new Date(normalized);
+
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+
   const formatTimestamp = (timestamp) => {
-    if (!timestamp) return "—";
-    const date = new Date(timestamp);
-    return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString("en-US", {
-      month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
-    });
+    const date = parseTimestamp(timestamp);
+    return date
+      ? date.toLocaleString(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        })
+      : "—";
   };
 
   const getFileName = (filePath) => {
@@ -1166,8 +1184,9 @@ export default function Dashboard({ isDarkMode, toggleTheme, language, setLangua
       return matchesSearch && matchesFilter;
     })
     .sort((a, b) => {
-      const dateA = new Date(a.created_at || a.timestamp);
-      const dateB = new Date(b.created_at || b.timestamp);
+      const dateA = parseTimestamp(a.time);
+      const dateB = parseTimestamp(b.time);
+      if (!dateA || !dateB) return 0;
       return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
     });
 
