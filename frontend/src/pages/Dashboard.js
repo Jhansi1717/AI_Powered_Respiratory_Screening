@@ -1853,50 +1853,6 @@ export default function Dashboard({ isDarkMode, toggleTheme, language, setLangua
           </div>
         </motion.div>
 
-        {/* 6.5 Model Generalization & Verification */}
-        <motion.div 
-          variants={cardVariants}
-          initial="hidden"
-          animate="visible"
-          className="rounded-3xl border border-dashed border-slate-300 bg-slate-50/50 p-8 dark:border-slate-700 dark:bg-slate-900/30"
-        >
-          <div className="flex flex-col lg:flex-row gap-8 items-start">
-            <div className="flex-1 space-y-4">
-              <div className="flex items-center gap-3 text-blue-600 dark:text-blue-400">
-                <ShieldCheck size={24} />
-                <h3 className="text-xl font-extrabold">{t.modelVerification}</h3>
-              </div>
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
-                {t.verificationDesc}
-              </p>
-              <div className="grid sm:grid-cols-2 gap-4 pt-2">
-                <div className="rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-800">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Tip 1: Noise Isolation</h4>
-                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Ensure recordings are made in a quiet room to avoid false pattern detection from background noise.</p>
-                </div>
-                <div className="rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-800">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Tip 2: Microphone Position</h4>
-                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Place the microphone 2-3cm away from the mouth/chest for the clearest respiratory signal.</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="w-full lg:w-80 rounded-2xl bg-blue-600 p-6 text-white shadow-xl shadow-blue-600/20">
-              <h4 className="text-sm font-black uppercase tracking-widest opacity-80 mb-4">{t.externalTesting}</h4>
-              <p className="text-xs font-bold leading-relaxed mb-6">
-                Test the model against standardized clinical audio datasets like ICBHI or Kaggle Respiratory Sound Database for independent validation.
-              </p>
-              <button className="w-full flex items-center justify-center gap-2 rounded-xl bg-white/20 py-3 text-xs font-black uppercase tracking-widest transition hover:bg-white/30 backdrop-blur-md">
-                <Info size={14} />
-                View Testing Guide
-              </button>
-            </div>
-          </div>
-          <p className="mt-6 text-[10px] font-bold text-slate-400 italic text-center">
-            {t.generalizationNote}
-          </p>
-        </motion.div>
-
         {/* 6. History Section */}
         <motion.section 
           initial={{ opacity: 0, y: 20 }}
