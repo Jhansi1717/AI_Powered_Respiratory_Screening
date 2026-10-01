@@ -29,6 +29,13 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: build
     rootDir: frontend
+    routes:
+      # React Router needs the SPA entry point for direct/deep-link requests.
+      # Without this, refreshing /dashboard makes the static host look for
+      # a physical "dashboard" file and returns 404.
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
       - key: REACT_APP_API_URL
         value: https://respiratory-ai-backend.onrender.com
